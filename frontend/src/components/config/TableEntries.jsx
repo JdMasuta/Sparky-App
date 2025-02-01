@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import useTableData from "./useTableData.jsx";
-import EntryField from "../shared/EntryField.jsx"; // Import the EntryField component
+import EntryField from "../shared/EntryField.jsx";
 
 // This object maps each table name to its primary key field
 const tableKeyMap = {
@@ -10,8 +10,7 @@ const tableKeyMap = {
   checkouts: "checkout_id",
 };
 
-// A helper function that returns the correct primary key value
-// for a given table and entry object:
+// Helper function to get the correct ID from an entry
 function getIdForTable(table, entry) {
   const keyName = tableKeyMap[table];
   return keyName ? entry[keyName] : entry.id;
@@ -19,15 +18,16 @@ function getIdForTable(table, entry) {
 
 function TableEntries({ table }) {
   const { tablesData, updateTable, preloadTables } = useTableData();
-
-  const [editing, setEditing] = useState(null); // Track which row is being edited (by ID)
-  const [editedEntry, setEditedEntry] = useState({}); // Track changes to the edited entry
-  const entries = tablesData[table] || []; // Ensure entries is always an array
+  const entries = tablesData[table] || [];
 
   const [isPreloaded, setIsPreloaded] = useState(false);
 
+  // New state for controlling global editing mode and tracking changes
+  const [globalEditing, setGlobalEditing] = useState(false);
+  const [changedEntries, setChangedEntries] = useState({});
+
   /**
-   * Preload ALL tables once on mount, if not already preloaded.
+   * Preload all tables on mount (if not already preloaded).
    */
   useEffect(() => {
     if (!isPreloaded) {
@@ -37,36 +37,54 @@ function TableEntries({ table }) {
   }, [isPreloaded, preloadTables]);
 
   /**
-   * Handle input changes for the edited entry
+   * Handle input changes for any entry in global editing mode.
+   * This function updates the changes for the specific row.
    */
-  const handleInputChange = (e) => {
+  const handleGlobalInputChange = (e, entryId) => {
     const { name, value } = e.target;
-    setEditedEntry((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setChangedEntries((prev) => {
+      const currentEntryChanges = prev[entryId] || {};
+      return {
+        ...prev,
+        [entryId]: {
+          ...currentEntryChanges,
+          [name]: value,
+        },
+      };
+    });
   };
 
   /**
-   * Start editing a specific entry
+   * Enable global editing mode.
    */
-  const startEditing = (entry) => {
-    setEditing(getIdForTable(table, entry)); // Set the ID of the entry being edited
-    setEditedEntry(entry); // Populate the editedEntry state with the entry's data
+  const enableEditing = () => {
+    setGlobalEditing(true);
   };
 
   /**
-   * Save the edited entry
+   * Cancel global editing mode and clear any unsaved changes.
    */
-  const saveEditedEntry = () => {
-    updateTable(table, "edit", editedEntry, editing);
-    setEditing(null); // Exit edit mode
-    setEditedEntry({}); // Clear the edited entry
+  const cancelEditing = () => {
+    setGlobalEditing(false);
+    setChangedEntries({});
   };
 
   /**
-   * Early return if there's truly no data (empty array) for this table
-   * or if preload hasn't happened yet.
+   * Save all changes for the entries that have been modified.
+   * This function iterates over the changed entries and calls updateTable
+   * (acting as our "handleTableChanges" functionality).
+   */
+  const handleSaveAllChanges = () => {
+    Object.entries(changedEntries).forEach(([id, newData]) => {
+      updateTable(table, "edit", newData, id);
+    });
+    // Exit editing mode and clear changes
+    setGlobalEditing(false);
+    setChangedEntries({});
+  };
+
+  /**
+   * If there is no data (or preload hasn’t finished), show a message.
    */
   if (!entries.length) {
     return (
@@ -76,72 +94,67 @@ function TableEntries({ table }) {
     );
   }
 
-  /**
-   * Main component rendering
-   */
   return (
     <div className="table-entries">
       <h3>{table.charAt(0).toUpperCase() + table.slice(1)} Entries</h3>
-      <table>
-        <thead>
-          <tr>
-            {entries[0] &&
-              Object.keys(entries[0]).map((key) => <th key={key}>{key}</th>)}
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => {
-            const entryId = getIdForTable(table, entry);
-            const isEditing = editing === entryId;
 
-            return (
-              <tr key={entryId}>
-                {Object.entries(entry).map(([key, value]) => (
-                  <td key={key}>
-                    {isEditing ? (
-                      <EntryField
-                        name={key}
-                        value={editedEntry[key] || ""}
-                        onChange={handleInputChange}
-                        placeholder={key}
-                      />
-                    ) : (
-                      value
-                    )}
+      {/* Global actions for editing */}
+      <div className="table-actions">
+        {globalEditing ? (
+          <>
+            <button onClick={handleSaveAllChanges}>Save Changes</button>
+            <button onClick={cancelEditing}>Cancel Editing</button>
+          </>
+        ) : (
+          <button onClick={enableEditing}>Edit All</button>
+        )}
+      </div>
+
+      <div className="table-container">
+        <table className="responsive-table">
+          <thead>
+            <tr>
+              <th>Actions</th>
+              {entries[0] &&
+                Object.keys(entries[0]).map((key) => <th key={key}>{key}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => {
+              const entryId = getIdForTable(table, entry);
+              return (
+                <tr key={entryId}>
+                  <td>
+                    {/* The delete button is always available */}
+                    <button
+                      onClick={() =>
+                        updateTable(table, "delete", null, entryId)
+                      }
+                    >
+                      Delete
+                    </button>
                   </td>
-                ))}
-                <td>
-                  {isEditing ? (
-                    <>
-                      <button onClick={saveEditedEntry}>Save</button>
-                      <button
-                        onClick={() => {
-                          setEditing(null); // Cancel edit mode
-                          setEditedEntry({}); // Clear the edited entry
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => startEditing(entry)}>Edit</button>
-                      <button
-                        onClick={() =>
-                          updateTable(table, "delete", null, entryId)
-                        }
-                      >
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  {Object.entries(entry).map(([key, value]) => (
+                    <td key={key}>
+                      {globalEditing ? (
+                        <EntryField
+                          name={key}
+                          // Use the changed value if it exists; otherwise use the original value
+                          value={changedEntries[entryId]?.[key] ?? value}
+                          onChange={(e) => handleGlobalInputChange(e, entryId)}
+                          placeholder={key}
+                        />
+                      ) : (
+                        value
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

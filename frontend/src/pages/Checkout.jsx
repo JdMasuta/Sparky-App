@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import MainNavBar from "../components/shared/MainNavBar.jsx";
 import useAlerts from "../components/shared/Alerts/useAlerts";
 import { useCheckoutForm } from "../components/entry/useCheckoutForm";
 import { useCheckoutData } from "../components/entry/useCheckoutData";
@@ -115,54 +114,49 @@ function Checkout() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isMonitoring, stopAllMonitoring]);
 
+  useEffect(() => {
+    // Called when the item field is populated - Starts monitoring, and ensures fieldData[item] is set
+    if (
+      formData.item &&
+      isValidSelection(formData.item, options.items) &&
+      !hasHandledAutoLogic.current
+    ) {
+      hasHandledAutoLogic.current = true;
+      handleAutoLogic();
+      // handleAutoLogic can internally do whatever you need:
+      //  - start monitoring
+      //  - or call handleSubmit if you want
+    }
+  }, [formData.item, options.items]);
+
   const hasHandledAutoLogic = useRef(false);
   const hasHandledManualEntry = useRef(false);
 
   const handleFieldChange = async (e) => {
     const { name, value } = e.target;
-    handleInputChange(e);
 
-    // Retrieve the key for options based on the field name
+    // 1. Update the form data
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    // 2. Perform any immediate PLC logic or validation checks as needed
     const optionsKey = optionKeyMap[name];
-
-    // Check if the field has options
     const fieldHasOptions = Boolean(optionsKey && options[optionsKey]);
-
-    let currentOptions = null;
-
-    if (fieldHasOptions) {
-      // Load the list of options dynamically
-      currentOptions = options[optionsKey];
-
-      // Validate the selection if the field has options
-      if (isValidSelection(value, currentOptions)) {
-        e.target.disabled = true; // Disable the input field while processing
-      }
-    }
-
-    // Proceed with PLC writing for valid selections or fields without options
     if (
-      name != "quantity" &&
+      name !== "quantity" &&
       (!fieldHasOptions ||
-        (fieldHasOptions && isValidSelection(value, currentOptions)))
+        (fieldHasOptions && isValidSelection(value, options[optionsKey])))
     ) {
+      e.target.disabled = true;
       const success = await writeToPLC(name, value);
-      console.log(`PLC write success for ${name}: ${value} ${success}`);
+      e.target.disabled = false;
+
+      // If PLC write was successful, move focus to the next field
       if (success) {
         focusNextField(name);
       }
-    }
-
-    // Re-enable the input field after the PLC write
-    e.target.disabled = false;
-
-    if (
-      name === "item" &&
-      isValidSelection(value, options.items) &&
-      !hasHandledAutoLogic.current
-    ) {
-      hasHandledAutoLogic.current = true;
-      await handleAutoLogic();
     }
   };
 
@@ -189,28 +183,9 @@ function Checkout() {
     }
   };
 
-  // const handlePullClick = () => {
-  //   setShowPullModal(true);
-  //   if (isMonitoring) {
-  //     console.log("Already monitoring!");
-  //     return;
-  //   }
-  //   startMonitoring(async (quantity) => {
-  //     setFormData((prev) => ({
-  //       ...prev,
-  //       quantity: quantity.toString(),
-  //     }));
-  //     const success = await submitCheckout(new Event("submit"));
-  //     if (success) {
-  //       await resetStepInPLC();
-  //       setShowPullModal(false);
-  //       resetForm();
-  //     }
-  //   });
-  // };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log(formData);
     const success = await submitCheckout(e);
     if (success) {
       addAlert({
@@ -279,8 +254,6 @@ function Checkout() {
 
   return (
     <div>
-      <MainNavBar />
-
       <div className="container">
         <div className="checkout-form-container">
           <h1 className="checkout-title">Cable Checkout</h1>
@@ -326,7 +299,6 @@ function Checkout() {
           }}
           onManualEntry={handleManualEntry}
         />
-        ;
       </div>
     </div>
   );

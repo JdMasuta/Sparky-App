@@ -34,9 +34,8 @@ const NavBar = () => {
 
   return (
     <div>
-      <br />
       <nav className="nav">
-        <div className="nav-content">
+        <div className="config-title">
           <h1>BW Cable Audit System</h1>
           <DatePicker
             selectsRange={true}

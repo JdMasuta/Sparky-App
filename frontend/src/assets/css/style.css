@@ -1,66 +1,147 @@
-/* Base styles */
+/* ========================================
+   Global & Reset Styles
+======================================== */
+
+/* Ensure paddings and borders are included in width calculations */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Reset margins, force the viewport dimensions, and disable horizontal scrolling */
+html,
 body {
   margin: 0;
+  padding: 0;
+  /* Set both to full viewport height and ensure no unwanted horizontal scroll */
+  height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Base styles */
+body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, sans-serif;
   background-color: #f5f5f5;
   color: #333;
 }
 
-/* Navigation */
-.nav {
-  width: 100%; /* Make it span the full width */
-  margin: 0 auto; /* Center it horizontally */
+/* ========================================
+   Layout Container & Core Components
+======================================== */
+
+/* Overall container that holds header, sidebar, and main content.
+   The container’s height is locked to the viewport so that any extra content 
+   (e.g. long tables) scrolls vertically within it. */
+.layout-container {
+  display: grid;
+  grid-template-rows: auto 1fr; /* header is auto height, main area is flexible */
+  grid-template-columns: 1fr; /* sidebar fixed, main grows */
+  grid-template-areas:
+    "header header"
+    "sidebar main";
+  height: 100vh; /* Always fits within viewheight */
+}
+
+/* Top header row */
+.top-header {
+  grid-area: header;
   background-color: #00a3e0;
-  padding: 1rem;
-  color: white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: 100%; /* Ensure the nav takes full width */
-  display: flex; /* Use flexbox for layout */
-  flex-direction: column;
-  justify-content: center; /* Center the content horizontally */
-}
-
-.nav-content {
-  max-width: 1200px;
-  margin: 0 auto;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  width: 100%; /* Ensure the content takes full width */
+  padding: 1rem;
+  max-height: fit-content;
+  width: 100%; /* Use 100% (not 100vw) to avoid horizontal overflow */
 }
 
+/* Left portion of the header for the logo */
+.header-logo img {
+  height: 50px; /* Adjust to taste */
+  margin-right: 1rem;
+}
+
+/* The "Sparky Cart" title */
+.sparky-title {
+  color: #f5f5f5;
+  font-size: 1.8rem;
+  margin: 0;
+}
+
+/* Sidebar layout */
+.sidebar {
+  grid-area: sidebar;
+  background-color: #f5f5f5;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: fit-content;
+  border-style: solid;
+  border-color: #333;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
+}
+
+/* Navigation menu container */
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Individual nav buttons */
+.nav-button {
+  padding: 0.8rem;
+  margin-bottom: 0.8rem;
+  cursor: pointer;
+  font-size: 1rem;
+  width: 100px;
+}
+.nav-button:hover {
+  background-color: #333;
+  border-color: #f5f5f5;
+}
+
+/* Logo container (if needed elsewhere) */
 .logo-container {
   display: flex;
-  justify-content: center;
   align-items: center;
-  width: 100%;
+  max-height: fit-content;
   padding: 1rem;
 }
 
 .logo-image {
-  background-color: #cbd5e0;
-  max-width: 70%;
-  height: auto;
-  max-height: 100%; /* Adjust the height to match the nav bar */
+  background: currentColor;
+  height: 50px;
+  max-height: 100%;
 }
 
-.search-box {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+/* Main content area */
+.main-content {
+  grid-area: main;
+  padding: 1rem;
+  width: inherit;
+  margin-block: 0;
+  max-height: min-content;
 }
 
-/* Main content */
+/* A general container that avoids exceeding viewport width */
 .container {
-  width: fit-content;
-  max-width: 1200px;
+  display: contents;
+  align-content: flex-start;
+  width: min-content;
+  max-width: 100%; /* Always fits horizontally */
   margin: 2rem auto;
   padding: 0 1rem;
 }
 
+/* ========================================
+   Content Components (Cards, Tables, etc.)
+======================================== */
+
+/* Stats Grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -92,12 +173,20 @@ body {
   font-size: 0.875rem;
 }
 
-/* Table styles */
+/* ========================================
+   Table Styles (with Vertical Scrolling)
+======================================== */
+
+/* Table container is capped so it never grows beyond the viewport.
+   Its content scrolls vertically if needed.
+   Adjust the subtraction value (here 2rem) to account for any margins or headers. */
 .table-container {
   background: white;
+  max-height: calc(100vh - 2rem);
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .table-header {
@@ -105,6 +194,37 @@ body {
   border-bottom: 1px solid #e2e8f0;
 }
 
+.table-entries {
+  max-height: min-content;
+  /* If you need a specific height, you could add one here */
+}
+
+.table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* =====================================================
+   Responsive Table Cell Classes for Dynamic Mobile Sizing
+======================================================== */
+
+/* Mobile adjustments (for viewports up to 768px wide) */
+@media only screen and (max-width: 768px) {
+  .responsive-table {
+    table-layout: auto; /* Allow cell widths to adjust to content */
+  }
+
+  .responsive-table th,
+  .responsive-table td {
+    padding: 0.25rem 0.5rem; /* Minimize padding for a compact cell */
+    white-space: normal; /* Allow text to wrap */
+    word-wrap: break-word; /* Break long words if necessary */
+    font-size: 0.85rem; /* Optionally reduce the font size slightly */
+    overflow-x: auto;
+  }
+}
+
+/* Standard table styles */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -123,6 +243,7 @@ td {
   padding: 1rem 1.5rem;
 }
 
+/* Status badges */
 .status-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
@@ -139,6 +260,10 @@ td {
   background: #fefcbf;
   color: #744210;
 }
+
+/* ========================================
+   Report, Project, and Progress Components
+======================================== */
 
 /* Report Container */
 .report-container {
@@ -213,57 +338,10 @@ td {
   transition: width 0.3s ease;
 }
 
-/* Report Table Specific Styles */
-.report-table-container {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  overflow-x: auto;
-}
+/* ========================================
+   Modal Styles
+======================================== */
 
-.report-header-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.report-clear-filter {
-  background: none;
-  border: none;
-  color: #00a3e0;
-  font-size: 0.875rem;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-}
-
-.report-clear-filter:hover {
-  color: #0077a3;
-}
-
-.report-th-content {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.report-table th {
-  cursor: pointer;
-}
-
-.report-table th:hover {
-  background-color: #edf2f7;
-}
-
-.report-table .text-right {
-  text-align: right;
-}
-
-.report-table td.text-right {
-  text-align: right;
-}
-
-/* Modal */
 .modal-wrapper {
   position: relative;
   background: white;
@@ -298,9 +376,9 @@ td {
   max-width: 90%;
   max-height: 90%;
   overflow-y: auto;
-  display: flex; /* Enable flexbox */
-  flex-direction: column; /* Stack content vertically */
-  gap: 16px; /* Add spacing between content items */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-top: 16px;
 }
 
@@ -316,14 +394,17 @@ td {
   z-index: 10;
 }
 
-/* Checkout Form Styles */
+/* ========================================
+   Checkout Form Styles
+======================================== */
+
 .checkout-form-container {
   background: white;
   padding: 2rem;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   max-width: 800px;
-  margin: 0 auto;
+  margin: 0;
 }
 
 .checkout-title {
@@ -409,6 +490,14 @@ td {
   cursor: not-allowed;
 }
 
+/* ========================================
+   Settings/Config
+======================================== */
+
+.config-title {
+  margin-block: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -422,4 +511,95 @@ td {
 
 .fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* ========================================
+   Mobile Responsive Styles (max-width: 768px)
+======================================== */
+@media only screen and (max-width: 768px) {
+  /* Stack layout: header, sidebar, then main content */
+  .layout-container {
+    grid-template-rows: auto auto 1fr;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "sidebar"
+      "main";
+  }
+
+  /* Adjust header: center content and reduce padding */
+  .top-header {
+    flex-direction: column;
+    align-items: baseline;
+    padding: 0.5rem;
+    width: 100vw;
+  }
+
+  .logo-image {
+    height: auto;
+    max-height: 40px;
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .sparky-title {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+
+  /* Sidebar becomes horizontal and full width */
+  .sidebar {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  .nav-button {
+    padding: 0.5rem;
+    margin: 0 0.25rem;
+    font-size: 0.9rem;
+    width: min-content;
+  }
+
+  /* Reduce side margins and paddings for main content */
+  .main-content {
+    padding: 0.5rem;
+  }
+
+  .container {
+    margin: 1rem auto;
+    padding: 0 0.5rem;
+  }
+
+  /* Make stat cards and grids adjust for narrower screens */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Ensure table containers adjust to mobile screens */
+  .table-container {
+    max-height: calc(100vh - 2rem);
+    max-width: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+
+  /* Checkout form: use full width and reduce padding */
+  .checkout-form-container {
+    padding: 1rem;
+    max-width: 100%;
+    margin: 1rem;
+  }
+
+  /* Stack checkout fields vertically */
+  .checkout-fields-horizontal {
+    grid-template-columns: 1fr;
+  }
 }

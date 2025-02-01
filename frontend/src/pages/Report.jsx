@@ -4,8 +4,6 @@ import StatCard from "../components/report/StatCard.jsx";
 import CablePullsTable from "../components/report/CablePullsTable.jsx";
 import { useCheckoutData } from "../components/report/useCheckoutData.jsx";
 import FetchPullsData from "../components/report/useFetchPullsData.jsx";
-import MainNavBar from "../components/shared/MainNavBar.jsx";
-
 function App() {
   const { initialData, error } = useCheckoutData();
   const [todaysPulls, setTodaysPulls] = useState(0);
@@ -17,7 +15,6 @@ function App() {
 
   return (
     <div>
-      <MainNavBar />
       <NavBar />
       <FetchPullsData
         setTodaysPulls={setTodaysPulls}

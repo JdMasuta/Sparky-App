@@ -13,7 +13,7 @@ const CablePullsTable = ({ initialData }) => {
       <div className="table-header">
         <h2>Recent Cable Pulls</h2>
       </div>
-      <table>
+      <table className="responsive-table">
         <thead>
           <tr>
             <th className="p-2 text-left">Timestamp</th>
