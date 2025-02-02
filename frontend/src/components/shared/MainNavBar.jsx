@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import logo from "../../assets/images/BW Integrated Systems.png";
+import Footer from "./Footer";
+import logo from "../../assets/images/BW.png";
 
 const MainNavBar = ({ children }) => {
   const navigate = useNavigate();
@@ -39,6 +40,7 @@ const MainNavBar = ({ children }) => {
 
       {/* Main Content (children will be your routed pages) */}
       <main className="main-content">{children}</main>
+      <Footer />
     </div>
   );
 };
