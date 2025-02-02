@@ -1,5 +1,5 @@
 // ../components/shared/CheckoutField.jsx
-import React, { forwardRef } from "react";
+import React, { forwardRef, useState, useEffect, useRef } from "react";
 
 const EntryField = forwardRef(
   (
@@ -24,8 +24,30 @@ const EntryField = forwardRef(
     const fieldClassName = `checkout-field fade-in${hidden ? " hidden" : ""}`;
     const fieldValue = hidden ? "0" : value;
 
+    // State to track whether the custom dropdown is open.
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    // A ref to the wrapper element, used for click-outside detection.
+    const containerRef = useRef(null);
+
+    // Close the dropdown if a click is detected outside the component.
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (
+          containerRef.current &&
+          !containerRef.current.contains(event.target)
+        ) {
+          setIsDropdownOpen(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, []);
+
     return (
-      <div className={fieldClassName}>
+      <div ref={containerRef} className={fieldClassName}>
         <label htmlFor={name} className="checkout-label">
           {label}
         </label>
@@ -37,9 +59,18 @@ const EntryField = forwardRef(
           value={fieldValue}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          // When the input is focused and options exist, open the custom dropdown.
+          onFocus={() => {
+            if (isDropdown) {
+              setIsDropdownOpen(true);
+            }
+          }}
+          // Optionally, you can manage onBlur here.
+          // We rely on the click-outside logic to close the dropdown.
           onInput={(e) => {
             onChange(e);
-            // If the value matches an option exactly, treat it as a selection
+            // Optionally, if the typed value exactly matches an option,
+            // you can treat it as a selection.
             if (options.includes(e.target.value)) {
               console.log(`Selection detected for ${name}: ${e.target.value}`);
               onChange(e);
@@ -48,22 +79,33 @@ const EntryField = forwardRef(
           className="checkout-input"
           placeholder={placeholder}
           pattern={pattern}
-          list={isDropdown ? `${name}-list` : undefined}
           autoComplete="off"
         />
-        {isDropdown && (
-          <datalist id={`${name}-list`}>
+        {isDropdown && isDropdownOpen && (
+          <ul className="custom-dropdown">
             {options.map((option, index) => (
-              <option key={index} value={option} />
+              <li
+                key={index}
+                className="custom-dropdown-item"
+                onMouseDown={(e) => {
+                  // Prevent the input from blurring before the click is registered.
+                  e.preventDefault();
+                  // Create a synthetic event to pass to onChange.
+                  onChange({ target: { name, value: option } });
+                  setIsDropdownOpen(false);
+                }}
+              >
+                {option}
+              </li>
             ))}
-          </datalist>
+          </ul>
         )}
       </div>
     );
   }
 );
 
-// Add display name for debugging purposes
+// Add display name for debugging purposes.
 EntryField.displayName = "CheckoutField";
 
 export default EntryField;

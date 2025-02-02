@@ -123,9 +123,6 @@ function Checkout() {
     ) {
       hasHandledAutoLogic.current = true;
       handleAutoLogic();
-      // handleAutoLogic can internally do whatever you need:
-      //  - start monitoring
-      //  - or call handleSubmit if you want
     }
   }, [formData.item, options.items]);
 
@@ -186,10 +183,10 @@ function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log(formData);
-    const success = await submitCheckout(e);
-    if (success) {
+    const response = await submitCheckout(e);
+    if (response["success"]) {
       addAlert({
-        message: `Checkout submission successful!\nQuantity: ${formData.quantity}`,
+        message: `Checkout submission successful!\nQuantity: ${response["quantity"]}`,
         severity: "success",
         timeout: 5,
       });

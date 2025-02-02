@@ -58,7 +58,7 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
       }
 
       console.log("Submitting checkout:", JSON.stringify(checkoutData));
-      const response = await fetch("http://localhost:3000/api/checkout/old", {
+      const response = await fetch("/api/checkout/old", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -72,11 +72,17 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
 
       // alert("Checkout submitted successfully!");
       resetForm(); // Reset form on successful submission
-      return true;
+      return {
+        quantity: checkoutData.quantity,
+        success: true,
+      };
     } catch (error) {
       console.error("Error submitting checkout:", error);
       alert("Failed to submit checkout. Please try again.");
-      return false;
+      return {
+        quantity: checkoutData.quantity,
+        success: false,
+      };
     }
   };
 

@@ -492,6 +492,49 @@ td {
 }
 
 /* ========================================
+   Custom Dropdown Styles for Checkout Field
+======================================== */
+
+/* Ensure the field container is positioned relatively so the dropdown can be positioned absolutely */
+.checkout-field {
+  position: relative;
+}
+
+/* Style the custom dropdown container */
+.custom-dropdown {
+  position: absolute;
+  top: 100%; /* Position just below the input */
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-top: none; /* Remove top border for a seamless connection with the input */
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 2px;
+  z-index: 100; /* Ensure the dropdown appears above other elements */
+  list-style: none; /* Remove default list styling */
+  padding: 0;
+  margin: 0;
+  max-height: 200px; /* Limit height; scroll if too many options */
+  overflow-y: auto;
+}
+
+/* Style for each dropdown option */
+.custom-dropdown-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+/* Hover state for dropdown options */
+.custom-dropdown-item:hover {
+  background-color: #f0f0f0;
+}
+
+/* ========================================
    Settings/Config
 ======================================== */
 
