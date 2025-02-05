@@ -39,11 +39,13 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  overflow-x: auto;
 }
 
 /* Allow the main content area to grow and push the footer down */
 .app-container > .main-content {
   flex: 1;
+  width: 100vw;
 }
 
 /* ========================================
