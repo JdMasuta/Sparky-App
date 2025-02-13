@@ -57,7 +57,9 @@ const NavBar = () => {
             Generate Report
           </button>
           <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-            {reportData && <CheckoutReport data={reportData} />}
+            {reportData && (
+              <CheckoutReport data={reportData} timestamp={startDate} />
+            )}
           </Modal>
         </div>
       </nav>
