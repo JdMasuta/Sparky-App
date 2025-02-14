@@ -1,20 +1,17 @@
-:: Created by npm, please don't edit manually.
-@ECHO OFF
-
+@ECHO off
+GOTO start
+:find_dp0
+SET dp0=%~dp0
+EXIT /b
+:start
 SETLOCAL
+CALL :find_dp0
 
-SET "NODE_EXE=%~dp0\node.exe"
-IF NOT EXIST "%NODE_EXE%" (
-  SET "NODE_EXE=node"
+IF EXIST "%dp0%\node.exe" (
+  SET "_prog=%dp0%\node.exe"
+) ELSE (
+  SET "_prog=node"
+  SET PATHEXT=%PATHEXT:;.JS;=;%
 )
 
-SET "NPM_PREFIX_JS=%~dp0\node_modules\npm\bin\npm-prefix.js"
-SET "NPM_CLI_JS=%~dp0\node_modules\npm\bin\npm-cli.js"
-FOR /F "delims=" %%F IN ('CALL "%NODE_EXE%" "%NPM_PREFIX_JS%"') DO (
-  SET "NPM_PREFIX_NPM_CLI_JS=%%F\node_modules\npm\bin\npm-cli.js"
-)
-IF EXIST "%NPM_PREFIX_NPM_CLI_JS%" (
-  SET "NPM_CLI_JS=%NPM_PREFIX_NPM_CLI_JS%"
-)
-
-"%NODE_EXE%" "%NPM_CLI_JS%" %*
+endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\node_modules\npm\bin\npm-cli.js" %*
