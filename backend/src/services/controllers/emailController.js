@@ -1,8 +1,6 @@
 // src/controllers/emailReportController.js
 import { getDatabase } from "../../init/db.init.js";
 import nodemailer from "nodemailer";
-import cron from "node-cron";
-import { Parser } from "json2csv";
 import emailConfig from "../config/email.config.js";
 import { generateHTMLTable } from "../templates/report.js";
 
