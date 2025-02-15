@@ -5,7 +5,7 @@ export const useEmailReport = ({ timestamp }) => {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  const sendEmailReport = async (email) => {
+  const sendEmailReport = async (email, timestamp) => {
     const controller = new AbortController();
     let isActive = true;
 

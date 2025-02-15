@@ -1,32 +1,28 @@
 #!/usr/bin/env pwsh
+$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 
-$NODE_EXE="$PSScriptRoot/node.exe"
-if (-not (Test-Path $NODE_EXE)) {
-  $NODE_EXE="$PSScriptRoot/node"
+$exe=""
+if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) {
+  # Fix case when both the Windows and Linux builds of Node
+  # are installed in the same directory
+  $exe=".exe"
 }
-if (-not (Test-Path $NODE_EXE)) {
-  $NODE_EXE="node"
-}
-
-$NPM_PREFIX_JS="$PSScriptRoot/node_modules/npm/bin/npm-prefix.js"
-$NPM_CLI_JS="$PSScriptRoot/node_modules/npm/bin/npm-cli.js"
-$NPM_PREFIX=(& $NODE_EXE $NPM_PREFIX_JS)
-
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "Could not determine Node.js install directory"
-  exit 1
-}
-
-$NPM_PREFIX_NPM_CLI_JS="$NPM_PREFIX/node_modules/npm/bin/npm-cli.js"
-if (Test-Path $NPM_PREFIX_NPM_CLI_JS) {
-  $NPM_CLI_JS=$NPM_PREFIX_NPM_CLI_JS
-}
-
-# Support pipeline input
-if ($MyInvocation.ExpectingInput) {
-  $input | & $NODE_EXE $NPM_CLI_JS $args
+$ret=0
+if (Test-Path "$basedir/node$exe") {
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "$basedir/node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" $args
+  } else {
+    & "$basedir/node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" $args
+  }
+  $ret=$LASTEXITCODE
 } else {
-  & $NODE_EXE $NPM_CLI_JS $args
+  # Support pipeline input
+  if ($MyInvocation.ExpectingInput) {
+    $input | & "node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" $args
+  } else {
+    & "node$exe"  "$basedir/node_modules/npm/bin/npm-cli.js" $args
+  }
+  $ret=$LASTEXITCODE
 }
-
-exit $LASTEXITCODE
+exit $ret
