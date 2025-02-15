@@ -1,4 +1,5 @@
-const { Controller, Tag } = require("ethernet-ip");
+const { Controller, Tag, EthernetIP } = require("ethernet-ip");
+const { SINT, BOOL, STRING, DINT } = EthernetIP.CIP.DataTypes.Types;
 
 // ------------------ CONFIGURATION ------------------
 const PLC_IP = "192.168.1.251"; // Replace with your PLC's IP address
@@ -9,14 +10,14 @@ const AUTH_TOKEN = "123"; // Replace with your key-pair or token secret
 
 // ------------------ TAG LOOKUP TABLE ----------------
 const TAGS = {
-  quantity: { name: "Reel.RealData[0]", type: "SINT" },
-  backupQuantity: { name: "Reel.RealData[10]", type: "SINT" },
-  completeRequest: { name: "_200_GLB.BoolData[0].0", type: "BOOL" },
-  userName: { name: "_200_GLB.StringData[0]", type: "STRING" },
-  moNumber: { name: "_200_GLB.StringData[1]", type: "STRING" },
-  itemNumber: { name: "_200_GLB.StringData[2]", type: "STRING" },
+  quantity: { name: "Reel.RealData[0]", type: SINT },
+  backupQuantity: { name: "Reel.RealData[10]", type: SINT },
+  completeRequest: { name: "_200_GLB.BoolData[0].0", type: BOOL },
+  userName: { name: "_200_GLB.StringData[0]", type: STRING },
+  moNumber: { name: "_200_GLB.StringData[1]", type: STRING },
+  itemNumber: { name: "_200_GLB.StringData[2]", type: STRING },
   completeAck: { name: "CompleteAck", type: "?" },
-  stepNumber: { name: "_200_GLB.DintData[2]", type: "DINT" },
+  stepNumber: { name: "_200_GLB.DintData[2]", type: DINT },
 };
 // ----------------------------------------------------
 
@@ -37,7 +38,19 @@ function lookupTagType(tagName) {
  */
 async function plcRead(tagName) {
   const plc = new Controller();
-  const tag = new Tag(lookupTagName(tagName));
+  tagType = lookupTagType(tagName);
+  if (tagType != STRING) {
+    const tag = new Tag(lookupTagName(tagName));
+  }
+  // If the tag is a string, read the first three elements
+  // TEST THIS
+  else if (tagType == STRING) {
+    let tags = [];
+    for (let i = 0; i < 3; i++) {
+      let tag = new Tag(lookupTagName(tagName) + `[${i}]`);
+      tags.append(tag);
+    }
+  }
   plc.on("error", (err) => {
     console.error("PLC Controller error in plcRead:", err.message);
   });
