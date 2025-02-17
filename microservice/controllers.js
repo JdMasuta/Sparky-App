@@ -18,6 +18,7 @@ const TAGS = {
   itemNumber: { name: "_200_GLB.StringData[2]", type: STRING },
   completeAck: { name: "CompleteAck", type: "?" },
   stepNumber: { name: "_200_GLB.DintData[2]", type: DINT },
+  test: { name: "_200_GLB.DintData[10]", type: DINT },
 };
 // ----------------------------------------------------
 
@@ -38,28 +39,45 @@ function lookupTagType(tagName) {
  */
 async function plcRead(tagName) {
   const plc = new Controller();
+  async function readOne(tag) {
+    plc.on("error", (err) => {
+      console.error("PLC Controller error in plcRead:", err.message);
+    });
+    try {
+      await plc.connect(PLC_IP, PLC_SLOT);
+      await plc.readTag(tag);
+      return tag.state.tag;
+    } catch (err) {
+      throw new Error(`Error reading tag '${tagName}': ${err.message}`);
+    }
+  }
   tagType = lookupTagType(tagName);
   if (tagType != STRING) {
+    console.log("Read Tag Name:", tagName);
     const tag = new Tag(lookupTagName(tagName));
+    x = await readOne(tag);
+    console.log("Tag:", x);
+    return x;
   }
   // If the tag is a string, read the first three elements
   // TEST THIS
   else if (tagType == STRING) {
     let tags = [];
     for (let i = 0; i < 3; i++) {
-      let tag = new Tag(lookupTagName(tagName) + `[${i}]`);
-      tags.append(tag);
+      try {
+        let a = lookupTagName(tagName) + `.DATA[${i}]`;
+        console.log("Read Tag Name:", a);
+        let tag = new Tag(a);
+        tags.push(await readOne(tag));
+        console.log("Tag:", tags[i]);
+      } catch (err) {
+        console.error("Error reading string tag:", err.message);
+        return "Failed"; // or handle the error as needed
+      }
     }
-  }
-  plc.on("error", (err) => {
-    console.error("PLC Controller error in plcRead:", err.message);
-  });
-  try {
-    await plc.connect(PLC_IP, PLC_SLOT);
-    await plc.readTag(tag);
-    return tag.state.tag;
-  } catch (err) {
-    throw new Error(`Error reading tag '${tagName}': ${err.message}`);
+    return tags;
+  } else {
+    throw new Error(`Unsupported tag type '${tagType}' for tag '${tagName}'`);
   }
 }
 
@@ -68,28 +86,36 @@ async function plcRead(tagName) {
  */
 async function plcWrite(tagName, value) {
   const plc = new Controller();
+  async function writeOne(tag) {
+    plc.on("error", (err) => {
+      console.error("PLC Controller error in plcWrite:", err.message);
+    });
+    try {
+      await plc.connect(PLC_IP, PLC_SLOT);
+      await plc.writeTag(tag);
+      return tag;
+    } catch (err) {
+      throw new Error(`Error writing tag '${tag.name}': ${err.message}`);
+    }
+  }
   tagType = lookupTagType(tagName);
   if (tagType != STRING) {
-    const tag = new Tag(lookupTagName(tagName));
+    const tag = new Tag(lookupTagName(tagName), null, DINT);
+    tag.value = value;
+    console.log("Write Tag Name:", tag.name);
+    return await writeOne(tag);
   }
   // If the tag is a string, read the first three elements
   // TEST THIS
   else if (tagType == STRING) {
     let tags = [];
-    for (let i = 0; i < 3; i++) {
-      let tag = new Tag(lookupTagName(tagName) + `[${i}]`);
-      tags.append(tag);
+    for (let i = 0; i < value.length; i++) {
+      let tag = new Tag(lookupTagName(tagName) + `[${i}]`, null, tagType);
+      tag.value = value.charCodeAt(i);
+      tags.push(await writeOne(tag));
+      console.log("Write Tag Name:", tag.name);
     }
-  }
-  plc.on("error", (err) => {
-    console.error("PLC Controller error in plcWrite:", err.message);
-  });
-  try {
-    await plc.connect(PLC_IP, PLC_SLOT);
-    await plc.writeTag(tagName, value);
-    return "Success";
-  } catch (err) {
-    throw new Error(`Error writing tag '${tagName}': ${err.message}`);
+    return tags;
   }
 }
 
@@ -103,7 +129,15 @@ const monitoringSessions = new Map();
 async function getTag(req, res) {
   try {
     const tagData = await plcRead(req.params.tagName);
-    res.json({ tag: tagData.name, value: tagData.value });
+    if (tagData.hasOwnProperty("name")) {
+      res.json({ tag: tagData.name, value: tagData.value });
+    } else {
+      console.log("Tag Data:", tagData);
+      const value = tagData
+        .map((tag) => String.fromCharCode(tag?.value) ?? "")
+        .join("");
+      res.json({ tag: req.params.tagName, value });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -115,7 +149,15 @@ async function postTag(req, res) {
     const tagName = req.params.tagName;
     const { value } = req.body;
     const result = await plcWrite(tagName, value);
-    res.json({ tag: tagName, result });
+    if (result.hasOwnProperty("name")) {
+      res.json({ tag: tagName, result });
+    } else {
+      console.log("Tag Data:", result);
+      res.json({
+        tag: tagName,
+        result: result.map((tag) => String.fromCharCode(tag?.value) ?? ""),
+      });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
