@@ -58,7 +58,7 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
       }
 
       console.log("Submitting checkout:", JSON.stringify(checkoutData));
-      const response = await fetch("/api/checkout/old", {
+      const response = await fetch("/api/checkouts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
