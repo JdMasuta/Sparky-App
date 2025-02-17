@@ -68,7 +68,19 @@ async function plcRead(tagName) {
  */
 async function plcWrite(tagName, value) {
   const plc = new Controller();
-  const tag = new Tag(lookupTagName(tagName), null, lookupTagType(tagName));
+  tagType = lookupTagType(tagName);
+  if (tagType != STRING) {
+    const tag = new Tag(lookupTagName(tagName));
+  }
+  // If the tag is a string, read the first three elements
+  // TEST THIS
+  else if (tagType == STRING) {
+    let tags = [];
+    for (let i = 0; i < 3; i++) {
+      let tag = new Tag(lookupTagName(tagName) + `[${i}]`);
+      tags.append(tag);
+    }
+  }
   plc.on("error", (err) => {
     console.error("PLC Controller error in plcWrite:", err.message);
   });
