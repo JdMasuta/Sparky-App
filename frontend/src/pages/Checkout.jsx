@@ -149,10 +149,11 @@ function Checkout() {
       e.target.disabled = true;
       const success = await writeToPLC(name, value);
       e.target.disabled = false;
+      focusNextField(name);
 
-      // If PLC write was successful, move focus to the next field
+      // If PLC write was successful, do something (update UI, etc.)
       if (success) {
-        focusNextField(name);
+        console.log(`Wrote ${value} to PLC:`, name);
       }
     }
   };
@@ -273,7 +274,7 @@ function Checkout() {
             </div>
 
             <div className="checkout-submit">
-              {shouldShowField("item") && formData.item && (
+              {shouldShowField("quantity") && formData.quantity && (
                 <button
                   type="button"
                   className="manual-checkout-button"
