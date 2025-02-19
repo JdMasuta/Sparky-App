@@ -277,7 +277,7 @@ function Checkout() {
               {shouldShowField("quantity") && formData.quantity && (
                 <button
                   type="button"
-                  className="manual-checkout-button"
+                  className="checkout-button"
                   onClick={handleManualEntry}
                   disabled={isInvalidQuantity(formData.quantity)}
                 >
