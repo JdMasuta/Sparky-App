@@ -60,7 +60,7 @@ body {
 .layout-container {
   display: grid;
   grid-template-rows: auto 1fr; /* header is auto height, main area is flexible */
-  grid-template-columns: 1fr; /* sidebar fixed, main grows */
+  grid-template-columns: auto 1fr; /* sidebar fixed, main grows */
   grid-template-areas:
     "header header"
     "sidebar main"
