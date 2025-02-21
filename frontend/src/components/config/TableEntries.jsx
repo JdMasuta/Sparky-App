@@ -106,8 +106,16 @@ function TableEntries({ table }) {
    * Submit the new entry (using a POST request via updateTable).
    */
   const handleSubmitNewEntry = () => {
+    // Filter out fields that end with "_ID"
+    const filteredNewEntry = Object.fromEntries(
+      Object.entries(newEntry).filter(
+        ([key]) => !key.toUpperCase().endsWith("_ID")
+      )
+    );
+
+    console.log("Submitting new entry:", filteredNewEntry);
     // Use the "create" operation for new entries (assumed to map to POST)
-    updateTable(table, "create", newEntry);
+    updateTable(table, "create", filteredNewEntry);
     setIsCreatingEntry(false);
     setNewEntry({});
   };
@@ -158,16 +166,18 @@ function TableEntries({ table }) {
             {/* New Entry row */}
             {isCreatingEntry && (
               <tr key="new-entry">
-                {entryKeys.map((key) => (
-                  <td key={key}>
-                    <EntryField
-                      name={key}
-                      value={newEntry[key]}
-                      onChange={(e) => handleNewEntryChange(e, key)}
-                      placeholder={key}
-                    />
-                  </td>
-                ))}
+                {entryKeys
+                  .filter((key) => !key.toUpperCase().endsWith("_ID"))
+                  .map((key) => (
+                    <td key={key}>
+                      <EntryField
+                        name={key}
+                        value={newEntry[key]}
+                        onChange={(e) => handleNewEntryChange(e, key)}
+                        placeholder={key}
+                      />
+                    </td>
+                  ))}
                 <td>
                   <button onClick={handleSubmitNewEntry}>Submit</button>
                 </td>

@@ -54,7 +54,7 @@ function useTableData() {
    */
   const getMethodFromOperation = (operation) => {
     const methods = {
-      add: "POST",
+      create: "POST",
       edit: "PUT",
       delete: "DELETE",
     };
