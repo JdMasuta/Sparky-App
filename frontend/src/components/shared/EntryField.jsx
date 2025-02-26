@@ -24,6 +24,11 @@ const EntryField = forwardRef(
     const fieldClassName = `checkout-field fade-in${hidden ? " hidden" : ""}`;
     const fieldValue = hidden ? "0" : value;
 
+    // Add filtering logic for the dropdown options
+    const filteredOptions = options.filter((option) =>
+      option.toLowerCase().includes(fieldValue.toLowerCase())
+    );
+
     // State to track whether the custom dropdown is open.
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     // A ref to the wrapper element, used for click-outside detection.
@@ -83,7 +88,7 @@ const EntryField = forwardRef(
         />
         {isDropdown && isDropdownOpen && (
           <ul className="custom-dropdown">
-            {options.map((option, index) => (
+            {filteredOptions.map((option, index) => (
               <li
                 key={index}
                 className="custom-dropdown-item"
