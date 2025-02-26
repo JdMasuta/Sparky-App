@@ -2,6 +2,7 @@ import express from "express";
 import {
   generateCheckoutReport,
   getTableData,
+  getActiveTableData,
   deleteInvalidCheckouts,
   // New optimized methods
   getLatestCheckoutsWithDetails,
@@ -22,6 +23,9 @@ router.post("/checkout_report", generateCheckoutReport);
 
 // Route: Get all users, projects, and items
 router.get("/table_data", getTableData);
+
+// Route: Get active entries for a given table
+router.get("/table_data/active", getActiveTableData);
 
 // Route: Delete all invalid checkouts
 router.delete("/purge", deleteInvalidCheckouts);

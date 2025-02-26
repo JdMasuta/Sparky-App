@@ -112,6 +112,32 @@ export const getTableData = (req, res) => {
   }
 };
 
+export const getActiveTableData = (req, res) => {
+  try {
+    const db = getDatabase();
+    const users = db
+      .prepare(
+        "SELECT user_id, name FROM users WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE'" // Assuming 'ACTIVE' is the default status if not specified
+      )
+      .all();
+    const projects = db
+      .prepare(
+        "SELECT project_id, project_number FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE';" // Assuming 'ACTIVE' is the default status if not specified
+      )
+      .all();
+    const items = db.prepare("SELECT item_id, sku FROM items").all();
+
+    res.status(200).json({
+      users,
+      projects,
+      items,
+    });
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    res.status(500).send("Internal Server Error");
+  }
+};
+
 // Method: Delete invalid checkouts
 export const deleteInvalidCheckouts = (req, res) => {
   try {
