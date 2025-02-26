@@ -17,7 +17,7 @@ export const useCheckoutData = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch("/api/table_data", {
+        const response = await fetch("/api/table_data/active", {
           method: "GET",
         });
         const data = await response.json();
