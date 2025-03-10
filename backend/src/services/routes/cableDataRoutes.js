@@ -44,7 +44,13 @@ router.post("/checkouts/detailed/after", getCheckoutsAfterTimestampWithDetails);
 // RESTful API
 
 // CRUD operations
-router.get("/:table/:id", getById);
+router.get("/:table/:id", (req, res, next) => {
+  // Skip this route handler if the table is "table_data" and id is "active"
+  if (req.params.table === "table_data" && req.params.id === "active") {
+    return next("route");
+  }
+  getById(req, res, next);
+});
 router.post("/:table", createEntry);
 router.put("/:table/:id", updateEntry);
 router.delete("/:table/:id", deleteEntry);
