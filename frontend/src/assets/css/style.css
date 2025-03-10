@@ -530,6 +530,10 @@ td {
   margin: 0;
   width: fit-content;
 }
+
+.sop-container-wrapper {
+  padding-top: 10px;
+}
 /* ========================================
    Custom Dropdown Styles for Checkout Field
 ======================================== */
