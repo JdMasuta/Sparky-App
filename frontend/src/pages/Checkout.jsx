@@ -228,6 +228,7 @@ function Checkout() {
       });
       await resetStepInPLC();
       fieldRefs.name.current.focus(); // Focus the first field (name)
+      setActiveField(fieldRefs.name.current.name);
     } else {
       addAlert({
         message: "Checkout submission failed!",
