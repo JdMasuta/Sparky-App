@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import useAlerts from "../components/shared/Alerts/useAlerts";
 import { useCheckoutForm } from "../components/entry/useCheckoutForm";
 import { useCheckoutData } from "../components/entry/useCheckoutData";
@@ -8,6 +8,7 @@ import { usePLCTags } from "../components/entry/usePLCTags";
 import { useFieldAutomation } from "../components/entry/useFieldAutomation";
 import EntryField from "../components/shared/EntryField.jsx";
 import PullOptionsModal from "../components/entry/PullModal.jsx";
+import SOP from "../components/entry/SOP.jsx";
 
 function Checkout() {
   const [showPullModal, setShowPullModal] = useState(false);
@@ -35,6 +36,8 @@ function Checkout() {
   } = useRSLinxMonitor();
   const { writeToPLC, resetStepInPLC, resetPLCvalues } = usePLCTags();
   const { fieldRefs, focusNextField } = useFieldAutomation();
+  const [activeField, setActiveField] = useState(null);
+  const activeFieldRef = useRef(null);
 
   const [isFirstLoad, setIsFirstLoad] = useState(true); // Track first load
 
@@ -72,6 +75,8 @@ function Checkout() {
 
           const connection = await ensureDDEConnection(); // Make sure connection is established
           stopAllMonitoring();
+
+          setActiveField("name");
 
           fieldRefs.name.current.focus(); // Focus the name field
           resetStepInPLC(); // Reset the step in the PLC
@@ -138,6 +143,12 @@ function Checkout() {
       [name]: value,
     }));
 
+    // 1.1 Save the current field as active for the SOP
+
+    if (activeFieldRef.current !== name) {
+      setActiveField(name);
+    }
+
     // 2. Perform any immediate PLC logic or validation checks as needed
     const optionsKey = optionKeyMap[name];
     const fieldHasOptions = Boolean(optionsKey && options[optionsKey]);
@@ -149,6 +160,22 @@ function Checkout() {
       e.target.disabled = true;
       const success = await writeToPLC(name, value);
       e.target.disabled = false;
+
+      const getNextField = (currentField) => {
+        const fieldOrder = ["name", "project", "item", "quantity"];
+        const currentIndex = fieldOrder.indexOf(currentField);
+        if (currentIndex >= 0 && currentIndex < fieldOrder.length - 1) {
+          return fieldOrder[currentIndex + 1];
+        }
+        return null;
+      };
+
+      // Update the active field before focusing the next field
+      const nextField = getNextField(name);
+      if (nextField) {
+        setActiveField(nextField);
+      }
+
       focusNextField(name);
 
       // If PLC write was successful, do something (update UI, etc.)
@@ -157,6 +184,14 @@ function Checkout() {
       }
     }
   };
+
+  const handleFieldFocus = useCallback((fieldName) => {
+    setActiveField(fieldName);
+  }, []);
+
+  useEffect(() => {
+    activeFieldRef.current = activeField;
+  }, [activeField]);
 
   const handleAutoLogic = async (e) => {
     if (!isMonitoring) {
@@ -264,6 +299,7 @@ function Checkout() {
                   {...field}
                   value={formData[field.name]}
                   onChange={handleFieldChange}
+                  onFocus={() => handleFieldFocus(field.name)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && field.name == "quantity")
                       handleManualEntry();
@@ -286,6 +322,15 @@ function Checkout() {
               )}
             </div>
           </form>
+        </div>
+        <div className="sop-container-wrapper">
+          <SOP
+            activeField={activeField}
+            isManualEntryVisible={
+              shouldShowField("quantity") && formData.quantity
+            }
+            formData={formData}
+          />
         </div>
       </div>
       <div>
