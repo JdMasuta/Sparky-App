@@ -384,6 +384,9 @@ function getPrimaryKeyForTable(table) {
 // Get a single row by ID
 export const getById = (req, res) => {
   const { table, id } = req.params;
+  if (table === "table_data" && id === "active") {
+    return getActiveTableData(req, res);
+  }
 
   try {
     const db = getDatabase();
