@@ -117,7 +117,7 @@ export const getActiveTableData = (req, res) => {
     const db = getDatabase();
     const users = db
       .prepare(
-        "SELECT user_id, name FROM users WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE'" // Assuming 'ACTIVE' is the default status if not specified
+        "SELECT user_id, name FROM users WHERE COALESCE(status, 'Active') = 'ACTIVE'" // Assuming 'ACTIVE' is the default status if not specified
       )
       .all();
     const projects = db
