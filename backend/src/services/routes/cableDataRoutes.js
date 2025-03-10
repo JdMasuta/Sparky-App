@@ -18,14 +18,21 @@ import {
 
 const router = express.Router();
 
+// Route: Get active entries for a given table
+// This route is now optimized to handle only the "table_data" table
+// and to skip the /:table/:id route
+router.use((req, res, next) => {
+  if (req.path === "/table_data/active") {
+    return getActiveTableData(req, res, next);
+  }
+  next();
+});
+
 // Route: Generate checkout report for entries after a given timestamp
 router.post("/checkout_report", generateCheckoutReport);
 
 // Route: Get all users, projects, and items
 router.get("/table_data", getTableData);
-
-// Route: Get active entries for a given table
-router.get("/table_data/active", getActiveTableData);
 
 // Route: Delete all invalid checkouts
 router.delete("/purge", deleteInvalidCheckouts);
