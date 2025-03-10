@@ -18,21 +18,14 @@ import {
 
 const router = express.Router();
 
-// Route: Get active entries for a given table
-// This route is now optimized to handle only the "table_data" table
-// and to skip the /:table/:id route
-router.use((req, res, next) => {
-  if (req.path === "/table_data/active") {
-    return getActiveTableData(req, res, next);
-  }
-  next();
-});
-
 // Route: Generate checkout report for entries after a given timestamp
 router.post("/checkout_report", generateCheckoutReport);
 
 // Route: Get all users, projects, and items
 router.get("/table_data", getTableData);
+
+// Route: Get active entries for a given table
+router.get("/table_data/active", getActiveTableData);
 
 // Route: Delete all invalid checkouts
 router.delete("/purge", deleteInvalidCheckouts);
@@ -51,13 +44,7 @@ router.post("/checkouts/detailed/after", getCheckoutsAfterTimestampWithDetails);
 // RESTful API
 
 // CRUD operations
-router.get("/:table/:id", (req, res, next) => {
-  // Skip this route handler if the table is "table_data" and id is "active"
-  if (req.params.table === "table_data" && req.params.id === "active") {
-    return next("route");
-  }
-  getById(req, res, next);
-});
+router.get("/:table/:id", getById);
 router.post("/:table", createEntry);
 router.put("/:table/:id", updateEntry);
 router.delete("/:table/:id", deleteEntry);
