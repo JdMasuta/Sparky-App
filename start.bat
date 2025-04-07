@@ -48,7 +48,7 @@ if not exist "%BASE_DIR%runtime\node-portable\node.exe" (
 
 :: Start Backend Server
 echo Starting backend server...
-cd backend\src
+cd %BASE_DIR%backend\src
 ::echo Current directory is now: %CD%
 start "Sparky Backend Server" cmd /k "%BASE_DIR%runtime\node-portable\node.exe %BASE_DIR%runtime\node-portable\node_modules\npm\bin\npm-cli.js run dev"
 cd %BASE_DIR%
@@ -60,7 +60,7 @@ timeout /t 2
 echo Starting frontend development server...
 cd frontend
 ::echo Current directory is now: %CD%
-start "Sparky Frontend Server" cmd /k "%BASE_DIR%runtime\node-portable\node.exe %BASE_DIR%runtime\node-portable\node_modules\npm\bin\npm-cli.js run dev"
+start "Sparky Frontend Server" cmd /k "%BASE_DIR%runtime\node-portable\node.exe %BASE_DIR%runtime\node-portable\node_modules\npm\bin\npm-cli.js run dev -- --host"
 cd %BASE_DIR%
 
 echo Application servers started!
