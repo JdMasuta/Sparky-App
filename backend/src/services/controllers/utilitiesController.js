@@ -48,7 +48,7 @@ export const gitPull = async (req, res, next) => {
     }\n`;
     console.log(logMessage.trim());
 
-    const result = await executeGitCommand("git pull");
+    const result = await executeGitCommand("git pull origin main");
 
     // Log the result
     const resultLog = `${new Date().toISOString()} Git pull result: ${JSON.stringify(
