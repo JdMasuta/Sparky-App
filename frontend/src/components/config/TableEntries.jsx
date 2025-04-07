@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import useTableData from "./useTableData.jsx";
 import EntryField from "../shared/EntryField.jsx";
+import Modal from "../shared/Modal.jsx";
 
 // This object maps each table name to its primary key field
 const tableKeyMap = {
@@ -21,11 +22,9 @@ function TableEntries({ table }) {
   const entries = tablesData[table] || [];
 
   const [isPreloaded, setIsPreloaded] = useState(false);
-  // Global editing state for existing rows:
   const [globalEditing, setGlobalEditing] = useState(false);
   const [changedEntries, setChangedEntries] = useState({});
-  // New entry state:
-  const [isCreatingEntry, setIsCreatingEntry] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEntry, setNewEntry] = useState({});
 
   // Preload all tables on mount
@@ -35,64 +34,6 @@ function TableEntries({ table }) {
       preloadTables().then(() => setIsPreloaded(true));
     }
   }, [isPreloaded, preloadTables]);
-
-  /**
-   * Handle changes for existing entry rows in global editing mode.
-   */
-  const handleGlobalInputChange = (e, entryId) => {
-    const { name, value } = e.target;
-    setChangedEntries((prev) => {
-      const currentEntryChanges = prev[entryId] || {};
-      return {
-        ...prev,
-        [entryId]: {
-          ...currentEntryChanges,
-          [name]: value,
-        },
-      };
-    });
-  };
-
-  /**
-   * Enable global editing.
-   */
-  const enableEditing = () => {
-    setGlobalEditing(true);
-  };
-
-  /**
-   * Cancel global editing and clear any unsaved changes.
-   */
-  const cancelEditing = () => {
-    setGlobalEditing(false);
-    setChangedEntries({});
-  };
-
-  /**
-   * Save changes for all modified entries.
-   */
-  const handleSaveAllChanges = () => {
-    Object.entries(changedEntries).forEach(([id, newData]) => {
-      updateTable(table, "edit", newData, id);
-    });
-    setGlobalEditing(false);
-    setChangedEntries({});
-  };
-
-  /**
-   * Initialize a new entry and show the new entry row.
-   */
-  const handleNewEntry = () => {
-    // Use the keys from the first entry as a template (if available)
-    if (entries.length > 0) {
-      const template = {};
-      Object.keys(entries[0]).forEach((key) => {
-        template[key] = "";
-      });
-      setNewEntry(template);
-    }
-    setIsCreatingEntry(true);
-  };
 
   /**
    * Handle changes for the new entry fields.
@@ -106,7 +47,6 @@ function TableEntries({ table }) {
    * Submit the new entry (using a POST request via updateTable).
    */
   const handleSubmitNewEntry = () => {
-    // Filter out fields that end with "_ID"
     const filteredNewEntry = Object.fromEntries(
       Object.entries(newEntry).filter(
         ([key]) => !key.toUpperCase().endsWith("_ID")
@@ -114,9 +54,30 @@ function TableEntries({ table }) {
     );
 
     console.log("Submitting new entry:", filteredNewEntry);
-    // Use the "create" operation for new entries (assumed to map to POST)
     updateTable(table, "create", filteredNewEntry);
-    setIsCreatingEntry(false);
+    setIsModalOpen(false);
+    setNewEntry({});
+  };
+
+  /**
+   * Open the modal for adding a new entry.
+   */
+  const handleNewEntry = () => {
+    if (entries.length > 0) {
+      const template = {};
+      Object.keys(entries[0]).forEach((key) => {
+        template[key] = "";
+      });
+      setNewEntry(template);
+    }
+    setIsModalOpen(true);
+  };
+
+  /**
+   * Cancel adding a new entry and close the modal.
+   */
+  const handleCancelNewEntry = () => {
+    setIsModalOpen(false);
     setNewEntry({});
   };
 
@@ -140,12 +101,12 @@ function TableEntries({ table }) {
       <div className="table-actions">
         {globalEditing ? (
           <>
-            <button onClick={handleSaveAllChanges}>Save Changes</button>
-            <button onClick={cancelEditing}>Cancel Editing</button>
+            <button onClick={() => setGlobalEditing(false)}>Save Changes</button>
+            <button onClick={() => setChangedEntries({})}>Cancel Editing</button>
           </>
         ) : (
           <>
-            <button onClick={enableEditing}>Edit All</button>
+            <button onClick={() => setGlobalEditing(true)}>Edit All</button>
             <button onClick={handleNewEntry}>New Entry</button>
           </>
         )}
@@ -155,7 +116,6 @@ function TableEntries({ table }) {
         <table className="responsive-table">
           <thead>
             <tr>
-              {/* Render column headers from entry keys */}
               {entryKeys.map((key) => (
                 <th key={key}>{key}</th>
               ))}
@@ -163,28 +123,6 @@ function TableEntries({ table }) {
             </tr>
           </thead>
           <tbody>
-            {/* New Entry row */}
-            {isCreatingEntry && (
-              <tr key="new-entry">
-                {entryKeys
-                  .filter((key) => !key.toUpperCase().endsWith("_ID"))
-                  .map((key) => (
-                    <td key={key}>
-                      <EntryField
-                        name={key}
-                        value={newEntry[key]}
-                        onChange={(e) => handleNewEntryChange(e, key)}
-                        placeholder={key}
-                      />
-                    </td>
-                  ))}
-                <td>
-                  <button onClick={handleSubmitNewEntry}>Submit</button>
-                </td>
-              </tr>
-            )}
-
-            {/* Existing rows */}
             {entries.map((entry) => {
               const entryId = getIdForTable(table, entry);
               return (
@@ -194,9 +132,16 @@ function TableEntries({ table }) {
                       {globalEditing ? (
                         <EntryField
                           name={key}
-                          // Use the changed value if it exists; otherwise, the original value
                           value={changedEntries[entryId]?.[key] ?? value}
-                          onChange={(e) => handleGlobalInputChange(e, entryId)}
+                          onChange={(e) =>
+                            setChangedEntries((prev) => ({
+                              ...prev,
+                              [entryId]: {
+                                ...prev[entryId],
+                                [key]: e.target.value,
+                              },
+                            }))
+                          }
                           placeholder={key}
                         />
                       ) : (
@@ -219,6 +164,34 @@ function TableEntries({ table }) {
           </tbody>
         </table>
       </div>
+
+      {/* Modal for adding a new entry */}
+      <Modal isOpen={isModalOpen} onClose={handleCancelNewEntry}>
+        <h3>Add New Entry</h3>
+        <form>
+          {entryKeys
+            .filter((key) => !key.toUpperCase().endsWith("_ID"))
+            .map((key) => (
+              <div key={key} className="modal-field">
+                <label htmlFor={key}>{key}</label>
+                <EntryField
+                  name={key}
+                  value={newEntry[key]}
+                  onChange={(e) => handleNewEntryChange(e, key)}
+                  placeholder={key}
+                />
+              </div>
+            ))}
+          <div className="modal-actions">
+            <button type="button" onClick={handleSubmitNewEntry}>
+              Submit
+            </button>
+            <button type="button" onClick={handleCancelNewEntry}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
