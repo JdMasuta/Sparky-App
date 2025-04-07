@@ -12,6 +12,7 @@ import Config from "./pages/Config.jsx";
 import { AlertProvider } from "./components/shared/Alerts/AlertContext.jsx";
 import MainNavBar from "./components/shared/MainNavBar.jsx";
 import Footer from "./components/shared/Footer.jsx";
+import './utils/gitConsole.js'; // Import the GitConsole utility
 
 function App() {
   return (

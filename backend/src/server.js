@@ -15,6 +15,7 @@ import {
 import cableDataRoutes from "./services/routes/cableDataRoutes.js";
 import RSLinxRoutes from "./services/routes/RSLinxRoutes.js";
 import emailRoutes from "./services/routes/emailRoutes.js";
+import utilitiesRoutes from "./services/routes/utilitiesRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
 import { sendCheckoutReport } from "./services/controllers/emailController.js";
 
@@ -48,6 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 // API Setup
 app.use("/api/rslinx", RSLinxRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/utilities", utilitiesRoutes);
 app.use("/api", cableDataRoutes);
 
 // Serve static files from the public directory
