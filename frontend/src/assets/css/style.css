@@ -368,20 +368,8 @@ td {
 }
 
 /* ========================================
-   Modal Styles
+   Modal Styles - Flexible for Different Use Cases
 ======================================== */
-.modal-wrapper {
-  position: relative;
-  background: white;
-  border-radius: 8px;
-  width: 400px; /* Set a fixed width */
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px; /* Reduced gap to save space */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -395,17 +383,31 @@ td {
   z-index: 1000;
 }
 
+.modal-wrapper {
+  position: relative;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  /* Removed fixed width for flexibility */
+  max-width: 90%;
+  max-height: 90vh; /* Ensure modal doesn't exceed viewport height */
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px; /* Space after the header */
+  margin-bottom: 16px;
 }
 
 .modal-title {
   font-size: 1.25rem;
   font-weight: bold;
-  margin: 0; /* Remove default margins */
+  margin: 0;
+  color: #333;
 }
 
 .modal-close {
@@ -422,15 +424,21 @@ td {
 
 .modal-content {
   color: #333;
-  display: flex;
-  flex-direction: column;
-  gap: 12px; /* Consistent with wrapper gap */
+  /* Enable scrolling for content that exceeds available space */
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Allow content to define its width while respecting container boundaries */
+  width: 100%;
+  /* Set a reasonable max-height for scrollable content */
+  max-height: calc(80vh - 100px); /* Adjust based on header and padding */
 }
 
+/* Form-specific styling */
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-bottom: 12px;
 }
 
 .form-group label {
@@ -438,22 +446,76 @@ td {
   font-size: 0.9rem;
 }
 
-.form-group input {
+.form-group input, 
+.form-group select {
   padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background-color: #f5f9fc;
 }
 
-.modal-actions {
-  margin-top: 10px;
-  display: flex;
-  justify-content: center;
+/* Data table styling */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.submit-button {
-  width: 100%;
+.report-table th {
+  background-color: #f5f9fc;
   padding: 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid #ddd;
+}
+
+.report-table td {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.report-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Report specific styling */
+.email-input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.email-button {
+  width: 100%;
+  padding: 12px;
+  background: #222;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+/* Sort icons in table headers */
+.sort-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* Actions area at the bottom of modals */
+.modal-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.submit-button,
+.action-button {
+  padding: 10px 16px;
   background: #222;
   color: white;
   border: none;
@@ -462,8 +524,13 @@ td {
   font-weight: bold;
 }
 
-.submit-button:hover {
-  background: #333;
+.cancel-button {
+  padding: 10px 16px;
+  background: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* ========================================
