@@ -1,4 +1,4 @@
-// ../components/shared/CheckoutField.jsx
+// ../components/shared/EntryField.jsx
 import React, { forwardRef, useState, useEffect, useRef } from "react";
 
 const EntryField = forwardRef(
