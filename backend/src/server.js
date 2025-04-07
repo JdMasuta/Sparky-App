@@ -35,6 +35,17 @@ try {
 const limiter = rateLimit(securityConfig.rateLimiting);
 
 // Middleware setup
+
+// Middleware function to log timestamp and request details
+const loggerMiddleware = (req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url}`);
+  next(); // Pass control to the next middleware or route handler
+};
+
+// Use the middleware for all routes
+app.use(loggerMiddleware);
+
 app.use(limiter);
 
 app.use(
