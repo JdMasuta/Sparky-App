@@ -1,0 +1,115 @@
+/* ========================================
+   Mobile Responsive Styles (max-width: 768px)
+======================================== */
+@media only screen and (max-width: 768px) {
+  /* Stack layout: header, sidebar, then main content */
+  .layout-container {
+    grid-template-rows: auto auto 1fr;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "sidebar"
+      "main";
+  }
+
+  /* Adjust header: center content and reduce padding */
+  .top-header {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.5rem;
+    width: 100vw;
+  }
+
+  .logo-image {
+    height: auto;
+    max-height: 40px;
+    margin-right: 0;
+    margin-bottom: 0.5rem;
+  }
+
+  .sparky-title {
+    font-size: 1.5rem;
+    text-align: center;
+  }
+
+  /* Sidebar becomes horizontal and full width */
+  .sidebar {
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem;
+  }
+
+  .nav-menu {
+    flex-direction: row;
+    width: 100%;
+  }
+
+  .nav-button {
+    padding: 0.5rem;
+    margin: 0 0.25rem;
+    font-size: 0.9rem;
+    width: min-content;
+  }
+
+  /* Reduce side margins and paddings for main content */
+  .main-content {
+    padding: 0.5rem;
+  }
+
+  .container {
+    margin: 1rem auto;
+    padding: 0 0.5rem;
+  }
+
+  /* Make stat cards and grids adjust for narrower screens */
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Ensure table containers adjust to mobile screens */
+  .table-container {
+    max-height: calc(100vh - 2rem);
+    max-width: 100%;
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+
+  /* Checkout form: use full width and reduce padding */
+  .checkout-form-container {
+    padding: 1rem;
+    max-width: 100%;
+    margin: 1rem;
+  }
+
+  /* Stack checkout fields vertically */
+  .checkout-fields-horizontal {
+    grid-template-columns: 1fr;
+  }
+  
+  /* Adjust modal size for mobile */
+  .modal-wrapper {
+    width: 95%;
+    max-width: 95%;
+    padding: 15px;
+  }
+  
+  /* Make table fonts smaller on mobile */
+  table {
+    font-size: 0.9rem;
+  }
+  
+  th, td {
+    padding: 0.5rem;
+  }
+  
+  /* Adjust form elements for better mobile experience */
+  .form-group input,
+  .form-group select,
+  .checkout-input,
+  .entry-field {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+    padding: 8px;
+  }
+}

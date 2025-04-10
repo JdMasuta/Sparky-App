@@ -1,0 +1,15 @@
+/* ========================================
+   Footer Styles
+======================================== */
+
+.app-footer {
+  background-color: #f5f5f5; /* matches your page background */
+  color: #333; /* matching text color */
+  font-size: 0.75rem; /* small text */
+  text-align: center;
+  padding: 1rem 0;
+  border-top: 1px solid #e2e8f0; /* subtle divider */
+  width: 100%;
+  margin-top: auto; /* useful if using flex or grid to push the footer to the bottom */
+  grid-area: footer;
+}

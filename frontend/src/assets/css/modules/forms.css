@@ -1,0 +1,128 @@
+/* ========================================
+   Form Element Styles
+======================================== */
+
+/* Basic field styling */
+.entry-field {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f5f9fc;
+  width: 100%;
+}
+
+/* Form-specific styling */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.form-group label {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f5f9fc;
+}
+
+/* Select field styling */
+select {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background-color: white;
+  color: black;
+}
+
+/* Date picker input */
+.date-input {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+/* Email input */
+.email-input {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+/* Email button */
+.email-button {
+  width: 100%;
+  padding: 12px;
+  background: #222;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 20px;
+}
+
+/* Button for generating reports */
+.generate-report-button {
+  padding: 0.5rem 1rem;
+  background-color: #00a3e0;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.generate-report-button:hover {
+  background-color: #0077a3;
+}
+
+/* Custom Dropdown Styles for EntryField */
+.checkout-field {
+  position: relative;
+}
+
+.custom-dropdown {
+  position: absolute;
+  top: 100%; /* Position just below the input */
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-top: none; /* Remove top border for a seamless connection with the input */
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 2px;
+  z-index: 100; /* Ensure the dropdown appears above other elements */
+  list-style: none; /* Remove default list styling */
+  padding: 0;
+  margin: 0;
+  max-height: 200px; /* Limit height; scroll if too many options */
+  overflow-y: auto;
+}
+
+.custom-dropdown-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.custom-dropdown-item:hover {
+  background-color: #f0f0f0;
+}
+
+.checkout-field.hidden {
+  display: none;
+}

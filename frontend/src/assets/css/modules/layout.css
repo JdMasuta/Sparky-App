@@ -1,0 +1,27 @@
+/* ========================================
+   Layout Container & Core Components
+======================================== */
+
+/* Overall container that holds header, sidebar, and main content.
+   The container's height is locked to the viewport so that any extra content 
+   (e.g. long tables) scrolls vertically within it. */
+.layout-container {
+  display: grid;
+  grid-template-rows: auto 1fr; /* header is auto height, main area is flexible */
+  grid-template-columns: auto 1fr; /* sidebar fixed, main grows */
+  grid-template-areas:
+    "header header"
+    "sidebar main"
+    "footer footer";
+  height: 100vh; /* Always fits within viewheight */
+  width: auto;
+}
+
+/* Main content area */
+.main-content {
+  grid-area: main;
+  padding: 1rem;
+  width: inherit;
+  margin-block: 0;
+  max-height: min-content;
+}

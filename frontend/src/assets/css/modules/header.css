@@ -1,0 +1,50 @@
+/* ========================================
+   Header Styles
+======================================== */
+
+/* Top header row */
+.top-header {
+  grid-area: header;
+  background-color: #00a3e0;
+  display: flex;
+  align-items: center;
+  padding: 0rem;
+  max-height: fit-content;
+  width: 100%; /* Use 100% (not 100vw) to avoid horizontal overflow */
+}
+
+/* Left portion of the header for the logo */
+.header-logo img {
+  height: fit-content; /* Adjust to taste */
+  margin-right: 1rem;
+}
+
+/* The "Sparky Cart" title */
+.sparky-title {
+  color: #f4f4f4;
+  text-shadow: #333f48;
+  font-size: 3rem;
+  margin: 0;
+  padding-left: 30px;
+}
+
+/* Logo container (if needed elsewhere) */
+.logo-container {
+  display: flex;
+  align-items: center;
+  max-height: fit-content;
+  padding: 0rem;
+  border-bottom-style: solid;
+  border-color: #337ab7;
+}
+
+.logo-image {
+  background: currentColor;
+  height: 93px;
+  max-height: 100%;
+}
+
+/* For the config title */
+.config-title {
+  margin-block: 0;
+}

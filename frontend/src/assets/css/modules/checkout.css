@@ -1,0 +1,124 @@
+/* ========================================
+   Checkout Form Styles
+======================================== */
+
+.checkout-form-container {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  /*max-width: 800px;*/
+  margin: 0;
+  width: fit-content;
+}
+
+.checkout-title {
+  color: #2d3748;
+  font-size: 1.875rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+}
+
+.checkout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.checkout-fields-horizontal {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.checkout-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.checkout-label {
+  color: #4a5568;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.checkout-input {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 163, 224, 0.1);
+  color: #2d3748;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.checkout-input:focus {
+  outline: none;
+  background: rgba(0, 163, 224, 0.15);
+  box-shadow: 0 0 0 2px rgba(0, 163, 224, 0.2);
+}
+
+.checkout-input::placeholder {
+  color: #a0aec0;
+}
+
+.checkout-submit {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.checkout-button {
+  background: #00a3e0;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-flow: column;
+}
+
+.checkout-button:hover {
+  background: #0077a3;
+}
+
+.checkout-button:disabled {
+  background: #cbd5e0;
+  cursor: not-allowed;
+}
+
+/* SOP (Standard Operating Procedure) styles */
+.sop-container {
+  background: white;
+  padding: 2rem;
+  padding-top: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  /*max-width: 800px;*/
+  margin: 0;
+  width: fit-content;
+}
+
+.sop-container-wrapper {
+  padding-top: 10px;
+}
+
+.sop-content {
+  padding: 1rem;
+}
+
+.sop-content h2 {
+  margin-top: 0;
+  color: #2d3748;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.sop-content p {
+  color: #4a5568;
+  line-height: 1.6;
+}

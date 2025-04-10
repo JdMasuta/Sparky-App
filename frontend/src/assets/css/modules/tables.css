@@ -1,0 +1,137 @@
+/* ========================================
+   Table Styles (with Vertical Scrolling)
+======================================== */
+
+/* Table container is capped so it never grows beyond the viewport.
+   Its content scrolls vertically if needed.
+   Adjust the subtraction value (here 2rem) to account for any margins or headers. */
+.table-container {
+  background: white;
+  max-height: calc(100vh - 2rem);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.table-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-entries {
+  max-height: min-content;
+  /* If you need a specific height, you could add one here */
+}
+
+.table-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Table actions */
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.table-actions button {
+  padding: 0.5rem 1rem;
+  background-color: #00a3e0;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.table-actions button:hover {
+  background-color: #0077a3;
+}
+
+/* Standard table styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  background: #f7fafc;
+  padding: 0.75rem 1.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #4a5568;
+}
+
+td {
+  padding: 1rem 1.5rem;
+}
+
+/* Status badges */
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-complete {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.status-pending {
+  background: #fefcbf;
+  color: #744210;
+}
+
+/* =====================================================
+   Responsive Table Cell Classes for Dynamic Mobile Sizing
+======================================================== */
+
+/* Mobile adjustments (for viewports up to 768px wide) */
+@media only screen and (max-width: 768px) {
+  .responsive-table {
+    table-layout: auto; /* Allow cell widths to adjust to content */
+  }
+
+  .responsive-table th,
+  .responsive-table td {
+    padding: 0.25rem 0.5rem; /* Minimize padding for a compact cell */
+    white-space: normal; /* Allow text to wrap */
+    word-wrap: break-word; /* Break long words if necessary */
+    font-size: 0.85rem; /* Optionally reduce the font size slightly */
+    overflow-x: auto;
+  }
+}
+
+/* Report specific table styles */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.report-table th {
+  background-color: #f5f9fc;
+  padding: 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid #ddd;
+}
+
+.report-table td {
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.report-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Sort icons in table headers */
+.sort-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 4px;
+}

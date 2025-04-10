@@ -1,6 +1,10 @@
+// Description: This component displays entries for a given table, allowing users to edit and add new entries. It uses a modal for adding new entries and handles global editing of existing entries.
+// It also preloads all tables on mount and provides a way to delete entries.
+
 import React, { useEffect, useState } from "react";
 import useTableData from "./useTableData.jsx";
 import EntryField from "../shared/EntryField.jsx";
+import SelectField from "../shared/SelectField.jsx";
 import Modal from "../shared/Modal.jsx";
 
 // This object maps each table name to its primary key field
@@ -11,10 +15,33 @@ const tableKeyMap = {
   checkouts: "checkout_id",
 };
 
+// Field types configuration
+const fieldTypesConfig = {
+  status: {
+    type: "select",
+    options: ["ACTIVE", "INACTIVE"],
+  },
+  // Add more field configurations as needed
+};
+
 // Helper function to get the correct ID from an entry
 function getIdForTable(table, entry) {
   const keyName = tableKeyMap[table];
   return keyName ? entry[keyName] : entry.id;
+}
+
+// Helper function to determine if a field should use a specific input type
+function getFieldType(fieldName) {
+  const fieldConfig = fieldTypesConfig[fieldName.toLowerCase()];
+  return fieldConfig ? fieldConfig.type : "text";
+}
+
+// Helper function to get options for a select field
+function getFieldOptions(fieldName) {
+  const fieldConfig = fieldTypesConfig[fieldName.toLowerCase()];
+  return fieldConfig && fieldConfig.type === "select"
+    ? fieldConfig.options
+    : [];
 }
 
 function TableEntries({ table }) {
@@ -81,7 +108,35 @@ function TableEntries({ table }) {
     setNewEntry({});
   };
 
-  // If there is no data (or preload hasn’t finished), show a message.
+  /**
+   * Render the appropriate input field based on field type
+   */
+  const renderInputField = (fieldName, value, onChange) => {
+    const fieldType = getFieldType(fieldName);
+
+    if (fieldType === "select") {
+      return (
+        <SelectField
+          name={fieldName}
+          value={value}
+          onChange={onChange}
+          options={getFieldOptions(fieldName)}
+          placeholder={`Select ${fieldName}`}
+        />
+      );
+    }
+
+    return (
+      <EntryField
+        name={fieldName}
+        value={value}
+        onChange={onChange}
+        placeholder={fieldName}
+      />
+    );
+  };
+
+  // If there is no data (or preload hasn't finished), show a message.
   if (!entries.length) {
     return (
       <p>
@@ -101,8 +156,12 @@ function TableEntries({ table }) {
       <div className="table-actions">
         {globalEditing ? (
           <>
-            <button onClick={() => setGlobalEditing(false)}>Save Changes</button>
-            <button onClick={() => setChangedEntries({})}>Cancel Editing</button>
+            <button onClick={() => setGlobalEditing(false)}>
+              Save Changes
+            </button>
+            <button onClick={() => setChangedEntries({})}>
+              Cancel Editing
+            </button>
           </>
         ) : (
           <>
@@ -129,24 +188,20 @@ function TableEntries({ table }) {
                 <tr key={entryId}>
                   {Object.entries(entry).map(([key, value]) => (
                     <td key={key}>
-                      {globalEditing ? (
-                        <EntryField
-                          name={key}
-                          value={changedEntries[entryId]?.[key] ?? value}
-                          onChange={(e) =>
-                            setChangedEntries((prev) => ({
-                              ...prev,
-                              [entryId]: {
-                                ...prev[entryId],
-                                [key]: e.target.value,
-                              },
-                            }))
-                          }
-                          placeholder={key}
-                        />
-                      ) : (
-                        value
-                      )}
+                      {globalEditing
+                        ? renderInputField(
+                            key,
+                            changedEntries[entryId]?.[key] ?? value,
+                            (e) =>
+                              setChangedEntries((prev) => ({
+                                ...prev,
+                                [entryId]: {
+                                  ...prev[entryId],
+                                  [key]: e.target.value,
+                                },
+                              }))
+                          )
+                        : value}
                     </td>
                   ))}
                   <td>
@@ -174,12 +229,9 @@ function TableEntries({ table }) {
             .map((key) => (
               <div key={key} className="modal-field">
                 <label htmlFor={key}>{key}</label>
-                <EntryField
-                  name={key}
-                  value={newEntry[key]}
-                  onChange={(e) => handleNewEntryChange(e, key)}
-                  placeholder={key}
-                />
+                {renderInputField(key, newEntry[key], (e) =>
+                  handleNewEntryChange(e, key)
+                )}
               </div>
             ))}
           <div className="modal-actions">

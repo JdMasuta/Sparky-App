@@ -1,0 +1,23 @@
+/* Main CSS aggregation file - imports all modules */
+
+/* Core styles needed by all pages */
+@import "./modules/base.css";
+@import "./modules/layout.css";
+@import "./modules/utilities.css";
+@import "./modules/responsive.css";
+
+/* Component-specific styles */
+@import "./modules/header.css";
+@import "./modules/sidebar.css";
+@import "./modules/footer.css";
+@import "./modules/tables.css";
+@import "./modules/cards.css";
+@import "./modules/forms.css";
+@import "./modules/modals.css";
+@import "./modules/checkout.css";
+@import "./modules/reports.css";
+
+/* 
+ * This file can be used in the main App.js or index.js to load all styles.
+ * For more targeted loading, use the component-specific CSS files instead.
+ */

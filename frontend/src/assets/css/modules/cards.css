@@ -1,0 +1,100 @@
+/* ========================================
+   Card Components Styles
+======================================== */
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.stat-title {
+  color: #4a5568;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #2d3748;
+}
+
+.stat-subtitle {
+  color: #718096;
+  font-size: 0.875rem;
+}
+
+/* Project Overview Section */
+.project-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.project-card {
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.project-card:hover {
+  border-color: #93c5fd;
+}
+
+.project-card.selected {
+  border-color: #00a3e0;
+  background-color: #e6f6fc;
+}
+
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.project-name {
+  font-weight: 500;
+  color: #2d3748;
+}
+
+.project-items {
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+.project-total {
+  text-align: right;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  color: #4a5568;
+}
+
+/* Progress Bar */
+.progress-bar {
+  position: relative;
+  height: 1rem;
+  background-color: #f7fafc;
+  border-radius: 4px;
+}
+
+.progress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background-color: #00a3e0;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
