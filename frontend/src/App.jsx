@@ -11,8 +11,8 @@ import Checkout from "./pages/Checkout.jsx";
 import Config from "./pages/Config.jsx";
 import { AlertProvider } from "./components/shared/Alerts/AlertContext.jsx";
 import MainNavBar from "./components/shared/MainNavBar.jsx";
-import Footer from "./components/shared/Footer.jsx";
-import './utils/gitConsole.js'; // Import the GitConsole utility
+import "./utils/gitConsole.js"; // Import the GitConsole utility
+import "./utils/command.js"; // Import the Command utility
 
 function App() {
   return (

@@ -73,3 +73,90 @@ export const gitStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+// Python execute controller
+export const pyExecute = async (req, res, next) => {
+  try {
+    const { command } = req.body;
+    if (!command) {
+      return res.status(400).json({
+        success: false,
+        message: "No code provided",
+      });
+    }
+
+    // Create a temporary Python file
+    const tempFilePath = path.join(repoPath, "temp_script.py");
+    await fs.writeFile(tempFilePath, command);
+
+    // Execute the Python script
+    exec(`python3 ${tempFilePath}`, (error, stdout, stderr) => {
+      // Clean up the temporary file
+      fs.unlink(tempFilePath).catch((err) =>
+        console.error(`Error deleting temp file: ${err}`)
+      );
+
+      if (error) {
+        console.error(`Python execution error: ${error.message}`);
+        return res.status(500).json({
+          success: false,
+          message: "Python execution failed",
+          error: error.message,
+        });
+      }
+
+      if (stderr) {
+        console.warn(`Python stderr: ${stderr}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Python script executed successfully",
+        output: stdout,
+        warnings: stderr,
+      });
+    });
+  } catch (error) {
+    console.error(`Error executing Python script: ${error}`);
+    next(error);
+  }
+};
+
+// PowerShell execute controller
+export const pwshExecute = async (req, res, next) => {
+  try {
+    const { command } = req.body;
+    if (!command) {
+      return res.status(400).json({
+        success: false,
+        message: "No code provided",
+      });
+    }
+
+    // Execute the PowerShell script
+    exec(`${command}`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`PowerShell execution error: ${error.message}`);
+        return res.status(500).json({
+          success: false,
+          message: "PowerShell execution failed",
+          error: error.message,
+        });
+      }
+
+      if (stderr) {
+        console.warn(`PowerShell stderr: ${stderr}`);
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "PowerShell script executed successfully",
+        output: stdout,
+        warnings: stderr,
+      });
+    });
+  } catch (error) {
+    console.error(`Error executing PowerShell script: ${error}`);
+    next(error);
+  }
+};
