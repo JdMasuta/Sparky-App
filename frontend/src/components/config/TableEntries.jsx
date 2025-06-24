@@ -53,6 +53,7 @@ function TableEntries({ table }) {
   const [changedEntries, setChangedEntries] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEntry, setNewEntry] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
   // Preload all tables on mount
   useEffect(() => {
@@ -61,6 +62,66 @@ function TableEntries({ table }) {
       preloadTables().then(() => setIsPreloaded(true));
     }
   }, [isPreloaded, preloadTables]);
+
+  /**
+   * Handle saving all changed entries to the database
+   */
+  const handleSaveChanges = async () => {
+    if (Object.keys(changedEntries).length === 0) {
+      console.log("No changes to save");
+      setGlobalEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    console.log("Saving changes:", changedEntries);
+
+    try {
+      // Process each changed entry
+      const savePromises = Object.entries(changedEntries).map(
+        async ([entryId, changes]) => {
+          // Find the original entry to merge with changes
+          const originalEntry = entries.find(
+            (entry) =>
+              getIdForTable(table, entry).toString() === entryId.toString()
+          );
+
+          if (!originalEntry) {
+            console.error(`Original entry not found for ID: ${entryId}`);
+            return;
+          }
+
+          // Merge original data with changes
+          const updatedEntry = { ...originalEntry, ...changes };
+
+          // Save to database
+          return updateTable(table, "edit", updatedEntry, entryId);
+        }
+      );
+
+      // Wait for all updates to complete
+      await Promise.all(savePromises);
+
+      // Clear changed entries and exit editing mode
+      setChangedEntries({});
+      setGlobalEditing(false);
+
+      console.log("All changes saved successfully!");
+    } catch (error) {
+      console.error("Error saving changes:", error);
+      // You might want to show an error message to the user here
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Handle canceling edit mode and discarding changes
+   */
+  const handleCancelEditing = () => {
+    setChangedEntries({});
+    setGlobalEditing(false);
+  };
 
   /**
    * Handle changes for the new entry fields.
@@ -156,10 +217,13 @@ function TableEntries({ table }) {
       <div className="table-actions">
         {globalEditing ? (
           <>
-            <button onClick={() => setGlobalEditing(false)}>
-              Save Changes
+            <button
+              onClick={handleSaveChanges}
+              disabled={isSaving || Object.keys(changedEntries).length === 0}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
-            <button onClick={() => setChangedEntries({})}>
+            <button onClick={handleCancelEditing} disabled={isSaving}>
               Cancel Editing
             </button>
           </>
@@ -209,6 +273,7 @@ function TableEntries({ table }) {
                       onClick={() =>
                         updateTable(table, "delete", null, entryId)
                       }
+                      disabled={globalEditing}
                     >
                       Delete
                     </button>
