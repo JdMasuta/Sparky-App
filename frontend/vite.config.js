@@ -16,5 +16,6 @@ export default defineConfig({
         secure: false,
       },
     },
+    origin: "*", // Allow all origins for development
   },
 });
