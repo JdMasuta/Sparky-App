@@ -88,6 +88,7 @@ export const sendCheckoutReport = async (req, res) => {
       .prepare(
         `SELECT 
           p.project_number,
+          p.a_number,
           i.sku AS item_sku,
           i.name AS item_name,
           SUM(c.quantity) AS total_quantity
@@ -100,9 +101,9 @@ export const sendCheckoutReport = async (req, res) => {
         WHERE 
           c.timestamp >= ?
         GROUP BY 
-          p.project_number, i.sku, i.name
+          p.a_number, i.sku, i.name
         ORDER BY 
-          p.project_number, i.sku, i.name`
+          p.a_number, i.sku, i.name`
       )
       .all(timestamp);
 

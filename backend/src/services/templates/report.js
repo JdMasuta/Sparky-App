@@ -13,7 +13,7 @@ export const generateHTMLTable = (rows) => {
             : ""
         }
         <tr style="border-bottom: 1px solid #e2e8f0; background: white;">
-          <td style="padding: 12px 16px;">${row.project_number}</td>
+          <td style="padding: 12px 16px;">${row.a_number}</td>
           <td style="padding: 12px 16px;">${row.item_sku}</td>
           <td style="padding: 12px 16px;">${row.item_name}</td>
           <td style="padding: 12px 16px; text-align: right;">${parseInt(
