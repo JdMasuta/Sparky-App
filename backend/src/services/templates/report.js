@@ -32,6 +32,7 @@ export const generateHTMLTable = (rows) => {
         <thead>
           <tr style="background: #f7fafc; border-bottom: 1px solid #e2e8f0;">
             <th style="padding: 12px 16px; font-size: 12px; text-transform: uppercase; cursor: pointer; color: #4a5568;">Project Number</th>
+            <th style="padding: 12px 16px; font-size: 12px; text-transform: uppercase; cursor: pointer; color: #4a5568;">M#</th>
             <th style="padding: 12px 16px; font-size: 12px; text-transform: uppercase; cursor: pointer; color: #4a5568;">SKU</th>
             <th style="padding: 12px 16px; font-size: 12px; text-transform: uppercase; cursor: pointer; color: #4a5568;">Item Name</th>
             <th style="padding: 12px 16px; font-size: 12px; text-transform: uppercase; cursor: pointer; color: #4a5568; text-align: right;">Total Quantity</th>
