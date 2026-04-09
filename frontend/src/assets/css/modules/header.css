@@ -42,6 +42,7 @@
   background: currentColor;
   height: 93px;
   max-height: 100%;
+  visibility: hidden;
 }
 
 /* For the config title */
