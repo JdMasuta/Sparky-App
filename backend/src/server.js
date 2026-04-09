@@ -52,7 +52,7 @@ app.use(
   cors({
     origin: "*",
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -104,9 +104,9 @@ app.get("/health", (req, res) => {
 const formatTimestamp = (date) => {
   const pad = (n) => (n < 10 ? "0" + n : n);
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate()
+    date.getDate(),
   )} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
-    date.getSeconds()
+    date.getSeconds(),
   )}`;
 };
 
@@ -123,7 +123,10 @@ cron.schedule("30 15 * * 5", async () => {
     const timestamp = formatTimestamp(oneWeekAgo);
 
     // List of emails to send the report to
-    const emailList = ["ruben.lara@bwpackaging.com"];
+    const emailList = [
+      "ruben.lara@bwpackaging.com",
+      "DLBWIS-LOV.Warehouse19@bwpackagingsystems.com",
+    ];
 
     for (const email of emailList) {
       console.log(`Sending report to ${email}`);
