@@ -2,10 +2,10 @@ const { Controller, Tag, EthernetIP } = require("ethernet-ip");
 const { SINT, BOOL, STRING, DINT } = EthernetIP.CIP.DataTypes.Types;
 
 // ------------------ CONFIGURATION ------------------
-const PLC_IP = "192.168.1.251"; // Replace with your PLC's IP address
+const PLC_IP = "192.168.1.70"; // Replace with your PLC's IP address
 const PLC_SLOT = 0; // Replace with your PLC's slot (often 0)
 const ALLOWED_ORIGIN = "*"; // Allowed origin for WebSocket connections
-const AUTH_TOKEN = "123"; // Replace with your key-pair or token secret
+const AUTH_TOKEN = "1023"; // Replace with your key-pair or token secret
 // ----------------------------------------------------
 
 // ------------------ TAG LOOKUP TABLE ----------------

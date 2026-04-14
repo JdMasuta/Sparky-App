@@ -373,6 +373,8 @@ const tableKeyMap = {
   items: "item_id",
   projects: "project_id",
   checkouts: "checkout_id",
+  report_recipients: "id",
+  weekly_report_status: "id",
 };
 
 // Utility function:

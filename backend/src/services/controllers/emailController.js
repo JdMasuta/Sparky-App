@@ -61,6 +61,38 @@ const createTransporter = () => {
   }
 };
 
+// Extracted core logic: fetch data and send to a single email address. Throws on failure.
+export async function sendReportToEmail(timestamp, email) {
+  const db = getDatabase();
+  const rows = db
+    .prepare(
+      `SELECT
+        p.project_number,
+        p.a_number,
+        i.sku AS item_sku,
+        i.name AS item_name,
+        SUM(c.quantity) AS total_quantity
+      FROM checkouts c
+      JOIN projects p ON c.project_id = p.project_id
+      JOIN items i ON c.item_id = i.item_id
+      WHERE c.timestamp >= ?
+      GROUP BY p.a_number, i.sku, i.name
+      ORDER BY p.a_number, i.sku, i.name`
+    )
+    .all(timestamp);
+
+  if (rows.length === 0) throw new Error('No data found for the specified time period');
+
+  const htmlContent = generateHTMLTable(rows);
+  await getTransporter().sendMail({
+    from: emailConfig.defaults.from,
+    to: email,
+    subject: 'Cable Audit System - Checkout Report',
+    html: `<h1>Cable Audit System - Weekly Checkout Report</h1>
+           <p>Checkout report from ${timestamp}:</p>${htmlContent}`,
+  });
+}
+
 // Method: Send checkout report via email
 export const sendCheckoutReport = async (req, res) => {
   const { timestamp, email } = req.body;
@@ -71,78 +103,18 @@ export const sendCheckoutReport = async (req, res) => {
       .send("Both timestamp and email parameters are required");
   }
 
-  let transporter;
   try {
-    transporter = createTransporter();
-  } catch (error) {
-    console.error("Failed to create email transporter:", error);
-    return res.status(500).json({
-      message: "Email configuration error",
-      error: error.message,
-    });
-  }
-
-  try {
-    const db = getDatabase();
-    const rows = db
-      .prepare(
-        `SELECT 
-          p.project_number,
-          p.a_number,
-          i.sku AS item_sku,
-          i.name AS item_name,
-          SUM(c.quantity) AS total_quantity
-        FROM 
-          checkouts c
-        JOIN 
-          projects p ON c.project_id = p.project_id
-        JOIN 
-          items i ON c.item_id = i.item_id
-        WHERE 
-          c.timestamp >= ?
-        GROUP BY 
-          p.a_number, i.sku, i.name
-        ORDER BY 
-          p.a_number, i.sku, i.name`
-      )
-      .all(timestamp);
-
-    if (rows.length === 0) {
-      return res
-        .status(404)
-        .send("No data found for the specified time period");
-    }
-
-    // Generate the HTML table using the imported function
-    const htmlContent = generateHTMLTable(rows);
-
-    const mailOptions = {
-      from: emailConfig.defaults.from,
-      to: email,
-      subject: "Cable Audit System - Checkout Report",
-      html: `
-        <h1>Cable Audit System - Weekly Checkout Report</h1>
-        <p>Dear User,</p>
-        <p>Please find the detailed checkout report for the week starting from ${timestamp} below:</p>
-        ${htmlContent}
-      `,
-    };
-
-    try {
-      await transporter.sendMail(mailOptions);
-    } catch (error) {
-      console.error("Failed to send email:", error);
-      throw error;
-    }
-
+    await sendReportToEmail(timestamp, email);
     res.status(200).json({
       message: "Report sent successfully",
       timestamp: timestamp,
       recipient: email,
-      total_records: rows.length,
     });
   } catch (error) {
     console.error("Error in sendCheckoutReport:", error);
+    if (error.message === 'No data found for the specified time period') {
+      return res.status(404).send(error.message);
+    }
     res.status(500).json({
       message: "Internal Server Error",
       error: error.message,

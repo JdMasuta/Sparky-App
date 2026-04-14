@@ -8,7 +8,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { promises as fs } from "fs";
-import { initializeDatabase, closeDatabase } from "./init/db.init.js";
+import {
+  initializeDatabase,
+  closeDatabase,
+  getDatabase,
+} from "./init/db.init.js";
 import {
   serverConfig,
   securityConfig,
@@ -19,7 +23,10 @@ import emailRoutes from "./services/routes/emailRoutes.js";
 import utilitiesRoutes from "./services/routes/utilitiesRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
 import authRoutes from "./services/routes/authRoutes.js";
-import { sendCheckoutReport } from "./services/controllers/emailController.js";
+import {
+  sendCheckoutReport,
+  sendReportToEmail,
+} from "./services/controllers/emailController.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -113,35 +120,62 @@ const formatTimestamp = (date) => {
   )}`;
 };
 
-// Weekly Cron Job
-// Cron format: minute hour day month day_of_week
-cron.schedule("30 15 * * 5", async () => {
-  // Every Friday at 3:30 PM
-  console.log("Starting weekly report job...");
+function getMostRecentFridayDate() {
+  const now = new Date();
+  const daysAgo = (now.getDay() + 2) % 7; // days since last Friday
+  const friday = new Date(now);
+  friday.setDate(now.getDate() - daysAgo);
+  friday.setHours(15, 30, 0, 0);
+  if (friday > now) friday.setDate(friday.getDate() - 7);
+  return friday;
+}
 
-  try {
-    // Generate timestamp for one week ago
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const timestamp = formatTimestamp(oneWeekAgo);
+async function runWeeklyReport(timestamp) {
+  const db = getDatabase();
+  const recipients = db.prepare("SELECT email FROM report_recipients").all();
+  let success = true;
+  let errorMessage = null;
 
-    // List of emails to send the report to
-    const emailList = [
-      "ruben.lara@bwpackaging.com",
-      "DLBWIS-LOV.Warehouse19@bwpackagingsystems.com",
-    ];
-
-    for (const email of emailList) {
-      console.log(`Sending report to ${email}`);
-      await sendCheckoutReport({
-        body: { timestamp, email },
-      });
+  for (const { email } of recipients) {
+    let sent = false;
+    let lastError = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await sendReportToEmail(timestamp, email);
+        sent = true;
+        break;
+      } catch (err) {
+        lastError = err;
+        console.error(
+          `Weekly report attempt ${attempt}/3 failed for ${email}:`,
+          err.message,
+        );
+      }
     }
-
-    console.log("Weekly report job completed successfully.");
-  } catch (error) {
-    console.error("Error during weekly report job:", error);
+    if (!sent) {
+      success = false;
+      errorMessage = lastError?.message ?? "Unknown error";
+    }
   }
+
+  db.prepare(
+    "INSERT INTO weekly_report_status (success, error_message) VALUES (?, ?)",
+  ).run(success ? 1 : 0, errorMessage);
+  return success;
+}
+
+// Weekly Cron Job — every Friday at 3:30 PM
+cron.schedule("30 15 * * 5", async () => {
+  console.log("Starting weekly report job...");
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const timestamp = formatTimestamp(oneWeekAgo);
+  const success = await runWeeklyReport(timestamp);
+  console.log(
+    success
+      ? "Weekly report completed."
+      : "Weekly report finished with errors.",
+  );
 });
 
 // Start server
@@ -149,6 +183,21 @@ const startServer = async () => {
   try {
     // Initialize database
     await initializeDatabase();
+
+    // Retry last report if it failed
+    const db = getDatabase();
+    const lastStatus = db
+      .prepare(
+        "SELECT * FROM weekly_report_status ORDER BY ran_at DESC LIMIT 1",
+      )
+      .get();
+    if (lastStatus && lastStatus.success === 0) {
+      console.log("Last weekly report failed — retrying on startup...");
+      const lastFriday = getMostRecentFridayDate();
+      const weekBefore = new Date(lastFriday);
+      weekBefore.setDate(weekBefore.getDate() - 7);
+      await runWeeklyReport(formatTimestamp(weekBefore));
+    }
 
     // Error handling middleware
     app.use(async (err, req, res, next) => {

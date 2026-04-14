@@ -23,7 +23,7 @@ try {
 
 let db = null;
 
-const REQUIRED_TABLES = ["users", "projects", "items", "checkouts"];
+const REQUIRED_TABLES = ["users", "projects", "items", "checkouts", "report_recipients", "weekly_report_status"];
 
 const tableExists = (db, tableName) => {
   try {
@@ -125,6 +125,40 @@ const createTables = (db) => {
       } catch (error) {
         console.error("Error creating checkouts table:", error.message);
         throw new Error(`Failed to create checkouts table: ${error.message}`);
+      }
+    }
+
+    // Create report_recipients table if needed
+    if (missingTables.includes("report_recipients")) {
+      try {
+        db.exec(`
+          CREATE TABLE report_recipients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE
+          );
+          INSERT INTO report_recipients (email) VALUES ('ruben.lara@bwpackaging.com');
+          INSERT INTO report_recipients (email) VALUES ('DLBWIS-LOV.Warehouse19@bwpackagingsystems.com');
+        `);
+      } catch (error) {
+        console.error("Error creating report_recipients table:", error.message);
+        throw new Error(`Failed to create report_recipients table: ${error.message}`);
+      }
+    }
+
+    // Create weekly_report_status table if needed
+    if (missingTables.includes("weekly_report_status")) {
+      try {
+        db.exec(`
+          CREATE TABLE weekly_report_status (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ran_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            success INTEGER NOT NULL,
+            error_message TEXT DEFAULT NULL
+          );
+        `);
+      } catch (error) {
+        console.error("Error creating weekly_report_status table:", error.message);
+        throw new Error(`Failed to create weekly_report_status table: ${error.message}`);
       }
     }
   } catch (error) {
