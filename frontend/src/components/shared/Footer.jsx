@@ -4,7 +4,7 @@ const Footer = () => {
   return (
     <footer className="app-footer">
       <div>Sparky Cart Project 2025</div>
-      <div>✨Contributors: Josh Meesey, Jeremiah Holabird, Robert Smith✨</div>
+      <div>✨Contributors: Josh Meesey, Jeremiah Holabird, Richard Smith✨</div>
       <div>Version 1.0.2</div>
     </footer>
   );
