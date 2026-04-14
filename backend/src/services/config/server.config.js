@@ -32,6 +32,7 @@ export const serverConfig = {
 export const securityConfig = {
   // API key for secure operations (should use environment variable in production)
   apiKey: process.env.API_KEY || "1023",
+  configPin: process.env.CONFIG_PIN || "1023",
 
   rateLimiting: {
     windowMs: 15 * 60 * 1000, // 15 minutes

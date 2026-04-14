@@ -1,4 +1,5 @@
 // backend/src/server.js
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -17,6 +18,7 @@ import RSLinxRoutes from "./services/routes/RSLinxRoutes.js";
 import emailRoutes from "./services/routes/emailRoutes.js";
 import utilitiesRoutes from "./services/routes/utilitiesRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
+import authRoutes from "./services/routes/authRoutes.js";
 import { sendCheckoutReport } from "./services/controllers/emailController.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,6 +60,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Setup
+app.use("/api/auth", authRoutes);
 app.use("/api/rslinx", RSLinxRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/utilities", utilitiesRoutes);
