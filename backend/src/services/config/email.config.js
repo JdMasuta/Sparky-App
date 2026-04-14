@@ -6,7 +6,7 @@ const config = {
     service: "gmail", // Using Gmail service instead of direct SMTP config
     auth: {
       user: "bwsparkycart@gmail.com",
-      pass: "arrf vmxt cmcs mokt",
+      pass: "nwdk qqcm gdss fnnx",
     },
     defaults: {
       from: process.env.EMAIL_FROM || '"Cable Audit System"',
