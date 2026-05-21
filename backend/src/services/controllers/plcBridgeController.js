@@ -1,9 +1,8 @@
 import { PLC, CIPDataType } from "ethernet-ip";
 
 // ------------------ CONFIGURATION ------------------
-const PLC_IP = "192.168.1.70"; // Replace with your PLC's IP address
-const ALLOWED_ORIGIN = "*"; // Allowed origin for WebSocket connections
-const AUTH_TOKEN = "1023"; // Replace with your key-pair or token secret
+const PLC_IP = process.env.PLC_IP ?? "192.168.1.70";
+export const AUTH_TOKEN = process.env.PLC_AUTH_TOKEN ?? "1023";
 // ----------------------------------------------------
 
 // ------------------ TAG LOOKUP TABLE ----------------
@@ -14,7 +13,7 @@ const TAGS = {
   userName: { name: "_200_GLB.StringData[0]", type: CIPDataType.STRING },
   moNumber: { name: "_200_GLB.StringData[1]", type: CIPDataType.STRING },
   itemNumber: { name: "_200_GLB.StringData[2]", type: CIPDataType.STRING },
-  completeAck: { name: "CompleteAck", type: "?" },
+  completeAck: { name: "CompleteAck", type: CIPDataType.BOOL }, // was "?" — adjust if not actually BOOL
   stepNumber: { name: "_200_GLB.DintData[2]", type: CIPDataType.DINT },
   test: { name: "_200_GLB.Description", type: CIPDataType.STRING },
   testWrite: { name: "_200_GLB.DintData[49]", type: CIPDataType.DINT },
@@ -22,20 +21,37 @@ const TAGS = {
 };
 // ----------------------------------------------------
 
-function getTagFromName(tagName) {
-  const tag = TAGS[tagName];
-  if (!tag) {
-    throw new Error(`Tag ${tagName} not found in lookup table.`);
+async function getTagFromName(tagName) {
+  if (TAGS[tagName]) {
+    return TAGS[tagName];
   }
-  return tag;
+  // Unknown tag — read once to let the registry discover and cache the type.
+  // Required before any write, since plc.write() needs to know how to serialize.
+  const plc = await getPLC();
+  try {
+    await plc.read(tagName);
+  } catch (error) {
+    throw new Error(`Tag ${tagName} not readable from PLC: ${error.message}`);
+  }
+  console.log(`Resolved unknown tag "${tagName}" via PLC discovery`);
+  return { name: tagName };
 }
 
-async function connectPLC() {
-  try {
+// ------------------ PLC CONNECTION ------------------
+// One long-lived PLC connection per process. autoReconnect handles drops
+// without re-running registry.define, so reads/writes stay cheap.
+let plcInstance = null;
+let plcInitPromise = null;
+
+async function getPLC() {
+  if (plcInstance) return plcInstance;
+  if (plcInitPromise) return plcInitPromise; // dedupe concurrent first connects
+
+  plcInitPromise = (async () => {
     const plc = new PLC();
     await plc.connect(PLC_IP, {
       autoReconnect: {
-        enabled: false,
+        enabled: true,
         initialDelay: 1000,
         maxDelay: 30000,
         multiplier: 2,
@@ -43,123 +59,124 @@ async function connectPLC() {
       },
     });
 
-    console.log("Connected");
-    for (let i = 0; i < Object.keys(TAGS).length; i++) {
-      const tag = Object.values(TAGS)[i];
+    for (const tag of Object.values(TAGS)) {
       plc.registry.define(tag.name, tag.type);
     }
+
+    // plc.on("connected", () => console.log("PLC connected"));
+    // plc.on("disconnected", () => console.log("PLC disconnected"));
+    // plc.on("reconnecting", (attempt) =>
+    //   console.log(`PLC reconnect attempt ${attempt}...`),
+    // );
+    plc.on("error", (err) => console.error("PLC error:", err.message));
+
+    console.log("PLC initial connection established");
     return plc;
+  })();
 
-    // plc.on("disconnected", () => {
-    //   console.log("Connection lost");
-    // });
-
-    // plc.on("reconnecting", (attempt) => {
-    //   console.log(`Reconnect attempt ${attempt}...`);
-    // });
-
-    // plc.on("connected", () => {
-    //   console.log("Connected");
-    //   for (let i = 0; i < Object.keys(TAGS).length; i++) {
-    //     const tag = Object.values(TAGS)[i];
-    //     plc.registry.define(tag.name, tag.type);
-    //   }
-    //   return plc;
-    //   // Tag registry is preserved — no re-discovery needed
-    // });
-
-    // plc.on("error", (err) => {
-    //   console.error("Error:", err.message);
-    // });
+  try {
+    plcInstance = await plcInitPromise;
+    return plcInstance;
   } catch (error) {
+    plcInitPromise = null; // allow retry on next call
     console.error("Error connecting to PLC:", error);
     throw error;
   }
 }
 
 /**
- * Utility function to read a PLC tag.
+ * Read one or more PLC tags. Always returns an array, indexed the same as `tags`.
  */
 async function readTags(tags) {
   console.log("Reading tags:", tags);
-  try {
-    const plc = await connectPLC();
-    const tagData = await plc.read(tags);
-    if (tagData.length === 1) {
-      return tagData[0];
-    } else {
-      return tagData;
-    }
-  } catch (error) {
-    console.error("Error reading tag:", error);
-    throw error;
-  }
+  const plc = await getPLC();
+  const result = await plc.read(tags);
+  // plc.read returns a bare value for single-tag reads; normalize to array
+  return Array.isArray(result) ? result : [result];
 }
 
 /**
- * Utility function to write a value to a PLC tag.
+ * Write one or more values to PLC tags.
+ * @param {Array<{name: string, data: any}>} tagData
  */
 async function writeTags(tagData) {
   console.log("Writing tags:", tagData);
-  try {
-    const plc = await connectPLC();
-    for (let i = 0; i < tagData.length; i++) {
-      const res = await plc.write(tagData[i].name, tagData[i].data);
-    }
-    return "Success";
-  } catch (error) {
-    console.error("Error writing tag:", error);
-    throw error;
+  const plc = await getPLC();
+  for (const { name, data } of tagData) {
+    await plc.write(name, data);
   }
 }
 
+// ------------------ ROUTE HANDLERS ------------------
+
 // GET /tags/:tagName
 export const getTag = async (req, res) => {
-  const tag = getTagFromName(req.params.tagName);
+  let tag;
   try {
-    const tagData = await readTags([tag.name]);
+    tag = await getTagFromName(req.params.tagName);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  try {
+    const [value] = await readTags([tag.name]);
     res.status(200).json({
       message: "Tag read successfully",
       tag: tag.name,
-      value: tagData,
+      value,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error reading tag:", error);
-    res.status(500).json({ error: "Failed to read Tag" });
+    res
+      .status(500)
+      .json({ error: "Failed to read tag", message: error.message });
   }
-  return res;
 };
 
+// POST /tags/:tagName  body: { value }
 export const postTag = async (req, res) => {
-  const tag = getTagFromName(req.params.tagName);
+  let tag;
+  try {
+    tag = await getTagFromName(req.params.tagName);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
   try {
     await writeTags([{ name: tag.name, data: req.body.value }]);
     res.status(200).json({
       message: "Tag updated successfully",
+      tag: tag.name,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error updating tag:", error);
-    res.status(500).json({ error: "Failed to update tag" });
+    res
+      .status(500)
+      .json({ error: "Failed to update tag", message: error.message });
   }
 };
 
+// POST /batch/read  body: { tags: ["quantity", "stepNumber", ...] }
 export const batchRead = async (req, res) => {
-  let tags;
+  let tagNames;
   try {
-    tags = req.body.tags.map((name) => getTagFromName(name).name);
+    tagNames = await Promise.all(
+      req.body.tags.map((name) => getTagFromName(name).then((tag) => tag.name)),
+    );
   } catch (error) {
     console.error("Error parsing request body:", error);
-    res.status(400).json({ error: "Invalid request body" });
-    return;
+    return res
+      .status(400)
+      .json({ error: "Invalid request body", message: error.message });
   }
+
   try {
-    const tagData = await readTags(tags);
-    let results = {};
-    for (let i = 0; i < tags.length; i++) {
-      results[tags[i]] = tagData[i];
-    }
+    const tagData = await readTags(tagNames);
+    const results = Object.fromEntries(
+      tagNames.map((name, i) => [name, tagData[i]]),
+    );
     res.status(200).json({
       message: "Tags read successfully",
       results,
@@ -170,29 +187,38 @@ export const batchRead = async (req, res) => {
     res
       .status(500)
       .json({ error: "Failed to read tags", message: error.message });
-    throw error;
   }
 };
 
+// POST /batch/write
 export const batchWrite = async (req, res) => {
   let tags;
-  // we expect an array of objects with "name" and "data" properties
   try {
-    tags = req.body.tags.map((tag) => {
-      const tagInfo = getTagFromName(tag.name);
-      return { name: tagInfo.name, data: tag.data };
-    });
+    if (!Array.isArray(req.body.tags)) {
+      tags = await Promise.all(
+        Object.entries(req.body.tags).map(async ([name, data]) => {
+          const tagInfo = await getTagFromName(name);
+          return { name: tagInfo.name, data };
+        }),
+      );
+    } else {
+      tags = await Promise.all(
+        req.body.tags.map(async (tag) => {
+          const tagInfo = await getTagFromName(tag.name);
+          return { name: tagInfo.name, data: tag.data };
+        }),
+      );
+    }
   } catch (error) {
     console.error("Error parsing request body:", error);
-    res.status(400).json({ error: "Invalid request body" });
-    return;
+    return res
+      .status(400)
+      .json({ error: "Invalid request body", message: error.message });
   }
+
   try {
-    const result = await writeTags(tags);
-    let results = {};
-    for (let i = 0; i < tags.length; i++) {
-      results[tags[i]] = result[i];
-    }
+    await writeTags(tags);
+    const results = Object.fromEntries(tags.map((t) => [t.name, "Success"]));
     res.status(200).json({
       message: "Tags updated successfully",
       results,
@@ -200,20 +226,33 @@ export const batchWrite = async (req, res) => {
     });
   } catch (error) {
     console.error("Error writing tags:", error);
-    res.status(500).json({ error: "Failed to update tags" });
-    throw error;
+    res
+      .status(500)
+      .json({ error: "Failed to update tags", message: error.message });
   }
 };
 
-// Check old version of getStatus for reference, but we may want to implement a more robust status check that queries the PLC directly rather than relying on connection events
+// GET /status
 export const getStatus = async (req, res) => {
-  const plc = await connectPLC();
-  console.log("Connection status:", plc.isConnected);
-  switch (plc.isConnected) {
-    case false:
-      res.status(408).json({ status: "disconnected" });
-    case true:
-      res.status(200).json({ status: "connected" });
+  try {
+    const plc = await getPLC();
+    if (plc.isConnected) {
+      return res.status(200).json({
+        status: "connected",
+        timestamp: new Date().toISOString(),
+      });
+    }
+    return res.status(408).json({
+      status: "disconnected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Status check failed:", error);
+    return res.status(408).json({
+      status: "disconnected",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
   }
 };
 
@@ -221,11 +260,16 @@ export const getStatus = async (req, res) => {
 const monitoringSessions = new Map(); // sessionId -> AbortController
 // ----------------------------------------------------
 
-// GET /monitor/:sessionId
+// GET /monitor/:sessionId?pollInterval=&timeout=&quantityThreshold=
 export const monitor = async (req, res) => {
   const { sessionId } = req.params;
   if (!sessionId) {
     return res.status(400).json({ error: "sessionId is required" });
+  }
+  if (monitoringSessions.has(sessionId)) {
+    return res
+      .status(409)
+      .json({ error: `Session ${sessionId} is already active` });
   }
 
   const {
@@ -238,8 +282,8 @@ export const monitor = async (req, res) => {
   const numericTimeout = Number(timeout);
   const numericThreshold = Number(quantityThreshold);
 
-  const quantityTag = getTagFromName("quantity").name;
-  const completeRequestTag = getTagFromName("completeRequest").name;
+  const quantityTag = await getTagFromName("quantity").name;
+  const completeRequestTag = await getTagFromName("completeRequest").name;
 
   const abortController = new AbortController();
   monitoringSessions.set(sessionId, abortController);

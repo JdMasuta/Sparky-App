@@ -1,32 +1,45 @@
-const controllers = require("./controllers.mjs");
+// backend/src/services/routes/plcBridgeRoutes.js
+import express from "express";
+import {
+  AUTH_TOKEN,
+  getTag,
+  postTag,
+  batchRead,
+  batchWrite,
+  getStatus,
+  monitor,
+  stopMonitor,
+} from "../controllers/plcBridgeController.js";
+
+const router = express.Router();
 
 // Authentication middleware
 function verifyAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   // Toggle authentication check as needed
-  if (false && authHeader !== `Bearer ${controllers.AUTH_TOKEN}`) {
+  if (false && authHeader !== `Bearer ${AUTH_TOKEN}`) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
 }
 
-module.exports = function (app) {
-  // Basic Tag Operations
-  app.get("/tags/:tagName", verifyAuth, controllers.getTag);
-  app.post("/tags/:tagName", verifyAuth, controllers.postTag);
+// Basic Tag Operations
+router.get("/tags/:tagName", verifyAuth, getTag);
+router.post("/tags/:tagName", verifyAuth, postTag);
 
-  // Batch Operations
-  app.post("/batch/read", verifyAuth, controllers.batchRead);
-  app.post("/batch/write", verifyAuth, controllers.batchWrite);
+// Batch Operations
+router.post("/batch/read", verifyAuth, batchRead);
+router.post("/batch/write", verifyAuth, batchWrite);
 
-  // Connection Management
-  app.get("/status", verifyAuth, controllers.getStatus);
-  // app.post("/reconnect", verifyAuth, controllers.reconnect);
+// Connection Management
+router.get("/status", verifyAuth, getStatus);
+// router.post("/reconnect", verifyAuth, reconnect);
 
-  // Production Operations: Monitoring the PLC
-  app.get("/monitor/:sessionId", verifyAuth, controllers.monitor);
-  app.post("/monitor/stop", verifyAuth, controllers.stopMonitor);
+// Production Operations: Monitoring the PLC
+router.get("/monitor/:sessionId", verifyAuth, monitor);
+router.post("/monitor/stop", verifyAuth, stopMonitor);
 
-  // // WebSocket Endpoint
-  // app.ws("/ws", controllers.wsHandler);
-};
+// // WebSocket Endpoint
+// router.ws("/ws", wsHandler);
+
+export default router;
