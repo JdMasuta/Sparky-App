@@ -27,6 +27,7 @@ import {
   sendCheckoutReport,
   sendReportToEmail,
 } from "./services/controllers/emailController.js";
+import plcBridgeRoutes from "./services/routes/plcBridgeRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -68,7 +69,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Setup
 app.use("/api/auth", authRoutes);
-app.use("/api/rslinx", RSLinxRoutes);
+// app.use("/api/rslinx", RSLinxRoutes);
+app.use("/api/rslinx", plcBridgeRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/utilities", utilitiesRoutes);
 app.use("/api", cableDataRoutes);
