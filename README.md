@@ -1,112 +1,100 @@
 # Sparky Control System
 
-A modern MERN-stack application for controlling and monitoring the Sparky cable pulling machine, replacing the legacy VBA-based control system.
+A modern web application for controlling and monitoring the **Sparky** cable‑pulling
+machine, replacing the legacy VBA/Excel control system. It runs on an on‑prem **edge
+device** wired to a Rockwell ControlLogix PLC and is accessed over the local network
+by a browser.
 
-## Overview
+> **Version 3.0.0** is an in‑progress overhaul: a finished (and simulator‑backed) PLC
+> bridge, a facelifted UI with an Admin Dashboard, stronger data validation and access
+> control, a real production launch, and a CI/CD + edge‑update pipeline.
 
-The Sparky Control System is a comprehensive solution for automating and tracking cable pulling operations. It interfaces with existing PLC hardware while providing a modern web interface and robust data management capabilities.
+## Architecture
 
-## Core Functionality
+```
+Browser (LAN users)  ──HTTP──►  Backend (Express, :3000, 0.0.0.0)
+   Checkout page                  │   • REST API + SQLite (better-sqlite3)
+   Admin Dashboard                │   • serves the built React app (same origin)
+                                  │   • weekly email report (node-cron + nodemailer)
+                                  │
+                                  └──HTTP (127.0.0.1 only)──►  PLC bridge microservice (:8000)
+                                                                 • EtherNet/IP  ──►  ControlLogix PLC
+                                                                 • or behavioral simulator (PLC_MODE=sim)
+```
 
-### Hardware Control
+- **Frontend** — React 18 + Vite 6 (+ Tailwind). Built output is served by the backend
+  in production (same origin); a Vite dev server is used only for local development.
+- **Backend** — Node.js + Express (ESM). REST API, business logic, auth, reporting,
+  and the authenticated **gateway** to the PLC bridge. Database is **SQLite** (file‑based,
+  via `better-sqlite3`).
+- **PLC bridge microservice** — the *only* component that talks to the PLC. Bound to
+  `127.0.0.1` so remote users can never reach the machine directly; the backend proxies
+  validated, intent‑based requests to it. Selectable driver: a live **EtherNet/IP**
+  connection (`PLC_MODE=real`) or a **behavioral simulator** (`PLC_MODE=sim`) for
+  hardware‑free development, testing, and CI.
+- **Runtime** — Node cannot be installed on the locked‑down edge device, so a **portable
+  Node runtime** is bundled in `runtime/node-portable` and every process is launched
+  through it.
 
-- Controls cable spool motor operation
-- Monitors optical encoder feedback for precise measurements
-- Interfaces with Rockwell Automation PLC via RSLinx
-- Real-time tracking of cable quantities pulled
+> Note: earlier docs described a MySQL/RSLinx‑DDE stack. The live system uses SQLite and a
+> direct EtherNet/IP client; the DDE/OPC and MySQL paths have been retired.
 
-### Data Management
+## Repository layout
 
-- User authentication and authorization
-- Project tracking and management
-- Cable type inventory management
-- Detailed logging of cable pulling operations
-- Automated report generation and email distribution
+```
+backend/        Express API, SQLite, reporting, PLC gateway
+frontend/       React + Vite single-page app (built into backend/src/public)
+microservice/   PLC bridge (EtherNet/IP driver + behavioral simulator)
+runtime/        Portable Node runtime (node.exe) — the only Node on the edge device
+deploy/         Production launch + update scripts (added in v3)
+data/           Runtime data (SQLite DB, .env, logs) — git-ignored, outside releases
+setup.bat       Sets PATH to portable Node + non-secret env defaults
+start.bat       Local development launcher
+```
 
-## Technical Architecture
+## Database
 
-### Frontend Layer
+SQLite, created/upgraded programmatically on boot (`backend/src/init`). Core tables:
+`users`, `projects`, `items`, `checkouts`, plus `report_recipients` and
+`weekly_report_status`. The DB file and secrets live in `SPARKY_DATA_DIR`
+(default `./data`), **outside** the code/release tree so updates never clobber data.
 
-- **Framework**: React
-- **Key Features**:
-  - Real-time machine control interface
-  - Project and inventory management dashboards
-  - User management interface
-  - Reporting and analytics views
+## Getting started (development)
 
-### Backend Layer
+Prerequisites: Node 23.6.0 (matches the bundled runtime) and npm.
 
-- **Runtime**: Node.js
-- **API Framework**: Express
-- **Key Responsibilities**:
-  - RESTful API endpoints
-  - Business logic implementation
-  - PLC communication via RSLinx
-  - Report generation and email dispatch
-  - Authentication and authorization
+```bash
+# install deps in each package
+(cd backend && npm install)
+(cd frontend && npm install)
+(cd microservice && npm install)
 
-### Database Layer
+# configure
+cp backend/.env.example backend/.env   # then fill in the blanks
 
-- **Database**: MySQL
-- **Schema**:
-  - Users: Store user credentials and permissions
-  - Projects: Track ongoing cable pulling projects
-  - Items: Catalog of cable types and specifications
-  - Checkouts: Log of cable pulling operations
+# run (three terminals, or use the dev launcher on Windows)
+(cd microservice && PLC_MODE=sim npm run dev)   # virtual PLC on 127.0.0.1:8000
+(cd backend && npm run dev)                      # API + gateway on :3000
+(cd frontend && npm run dev)                     # Vite dev server on :5173
+```
 
-### Hardware Integration Layer
-
-- **PLC**: Rockwell Automation
-- **Communication**: RSLinx
-- **Components**:
-  - Motor control system
-  - Optical encoder (retroreflective photo eye with perforated disk)
-  - Cable spool mechanism
-
-## System Benefits
-
-### Improved Reliability
-
-- Modern architecture with proper separation of concerns
-- Robust error handling and logging
-- Industry-standard security practices
-
-### Enhanced Maintainability
-
-- Well-documented codebase
-- Modern JavaScript ecosystem
-- Familiar tech stack for current development team
-- Modular design for easy updates and modifications
-
-### Better User Experience
-
-- Web-based interface accessible from any device
-- Real-time monitoring and control
-- Automated reporting functionality
-- Improved data visualization and analytics
-
-## Migration from Legacy System
-
-This system replaces an Excel-based solution that utilized Visual Basic macros for:
-
-- Machine control
-- Data storage
-- Report generation
-
-The new architecture provides a more scalable and maintainable solution while maintaining all existing functionality.
-
-## Getting Started
-
-[Development setup instructions to be added]
+With `PLC_MODE=sim` the microservice exposes sim‑control endpoints (start/complete/reset a
+pull) so the full Checkout flow can be exercised without hardware.
 
 ## Configuration
 
-[Configuration details to be added]
+All configuration is via environment variables; see `backend/.env.example`. Secrets
+(email password, admin password hash, session/bridge secrets) belong only in
+`SPARKY_DATA_DIR/.env`, never in tracked scripts.
 
 ## Deployment
 
-[Deployment instructions to be added]
+Production runs natively on the edge device via the portable Node runtime — the frontend
+is built to static files and served by Express on a single port; the backend and PLC
+bridge are supervised. Remote updates are delivered as versioned GitHub Releases and
+applied on‑device by an updater with checksum verification and rollback. See `deploy/`
+(added during the v3 CI/CD work).
 
-## Contributing
+## License
 
-[Contribution guidelines to be added]
+ISC.

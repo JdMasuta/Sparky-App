@@ -1,6 +1,6 @@
 {
   "name": "plc-link",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Bridging microservice for PLC operation from Sparky's remote web-app",
   "license": "ISC",
   "author": "Josh Meesey",
