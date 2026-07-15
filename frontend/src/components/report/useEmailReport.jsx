@@ -1,59 +1,27 @@
 import { useState } from "react";
+import { api } from "../../lib/api.js";
 
-export const useEmailReport = ({ timestamp }) => {
+export const useEmailReport = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
+  // Note: /api/email/* is admin-only, so this succeeds only for a signed-in
+  // admin (the api wrapper sends the session cookie + CSRF header).
   const sendEmailReport = async (email, timestamp) => {
-    const controller = new AbortController();
-    let isActive = true;
-
     setIsLoading(true);
     setError(null);
     setSuccess(false);
-
     try {
-      const response = await fetch("/api/email/email-report", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-        body: JSON.stringify({ timestamp, email }), // Use the dynamic email
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (!isActive) return;
+      await api.post("/email/email-report", { timestamp, email });
       setSuccess(true);
     } catch (err) {
-      if (err.name === "AbortError") return;
-      if (isActive) {
-        setError(err.message);
-        console.error("Error sending email report:", err);
-      }
+      setError(err.message);
+      console.error("Error sending email report:", err);
     } finally {
-      if (isActive) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-
-    return () => {
-      isActive = false;
-      controller.abort();
-    };
   };
 
-  return {
-    sendEmailReport,
-    isLoading,
-    error,
-    success,
-  };
+  return { sendEmailReport, isLoading, error, success };
 };

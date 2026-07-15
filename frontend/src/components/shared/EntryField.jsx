@@ -1,6 +1,9 @@
-// ../components/shared/EntryField.jsx
-import React, { forwardRef, useState, useEffect, useRef } from "react";
+import { forwardRef, useState, useEffect, useRef } from "react";
 
+// Checkout field: a text input with an optional type-ahead dropdown. Hooks are
+// declared unconditionally (before any early return) to satisfy the Rules of
+// Hooks — the previous version returned null before calling hooks, which threw
+// "rendered fewer hooks than expected" when a field toggled visibility.
 const EntryField = forwardRef(
   (
     {
@@ -18,42 +21,30 @@ const EntryField = forwardRef(
     },
     ref
   ) => {
-    if (!showField) return null;
-
-    const isDropdown = options.length > 0;
-    const fieldClassName = `checkout-field fade-in${hidden ? " hidden" : ""}`;
-    const fieldValue = hidden ? "0" : value;
-
-    // Add filtering logic for the dropdown options
-    const filteredOptions = options.filter((option) =>
-      option.toLowerCase().includes(fieldValue.toLowerCase())
-    );
-
-    // State to track whether the custom dropdown is open.
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    // A ref to the wrapper element, used for click-outside detection.
     const containerRef = useRef(null);
 
-    // Close the dropdown if a click is detected outside the component.
     useEffect(() => {
       const handleClickOutside = (event) => {
-        if (
-          containerRef.current &&
-          !containerRef.current.contains(event.target)
-        ) {
+        if (containerRef.current && !containerRef.current.contains(event.target)) {
           setIsDropdownOpen(false);
         }
       };
-
       document.addEventListener("mousedown", handleClickOutside);
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-      };
+      return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    if (!showField) return null;
+
+    const isDropdown = options.length > 0;
+    const fieldValue = hidden ? "0" : value ?? "";
+    const filteredOptions = options.filter((option) =>
+      option.toLowerCase().includes(String(fieldValue).toLowerCase())
+    );
+
     return (
-      <div ref={containerRef} className={fieldClassName}>
-        <label htmlFor={name} className="checkout-label">
+      <div ref={containerRef} className={`animate-fade-in relative flex-1 ${hidden ? "hidden" : ""}`}>
+        <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-600">
           {label}
         </label>
         <input
@@ -64,38 +55,21 @@ const EntryField = forwardRef(
           value={fieldValue}
           onChange={onChange}
           onKeyDown={onKeyDown}
-          // When the input is focused and options exist, open the custom dropdown.
-          onFocus={() => {
-            if (isDropdown) {
-              setIsDropdownOpen(true);
-            }
-          }}
-          // Optionally, you can manage onBlur here.
-          // We rely on the click-outside logic to close the dropdown.
-          onInput={(e) => {
-            onChange(e);
-            // Optionally, if the typed value exactly matches an option,
-            // you can treat it as a selection.
-            if (options.includes(e.target.value)) {
-              console.log(`Selection detected for ${name}: ${e.target.value}`);
-              onChange(e);
-            }
-          }}
-          className="checkout-input"
+          onFocus={() => isDropdown && setIsDropdownOpen(true)}
+          onInput={(e) => onChange(e)}
+          className="block w-full rounded-lg border-0 px-3 py-2.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-brand-500"
           placeholder={placeholder}
           pattern={pattern}
           autoComplete="off"
         />
-        {isDropdown && isDropdownOpen && (
-          <ul className="custom-dropdown">
+        {isDropdown && isDropdownOpen && filteredOptions.length > 0 && (
+          <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
             {filteredOptions.map((option, index) => (
               <li
                 key={index}
-                className="custom-dropdown-item"
+                className="cursor-pointer px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
                 onMouseDown={(e) => {
-                  // Prevent the input from blurring before the click is registered.
                   e.preventDefault();
-                  // Create a synthetic event to pass to onChange.
                   onChange({ target: { name, value: option } });
                   setIsDropdownOpen(false);
                 }}
@@ -110,7 +84,6 @@ const EntryField = forwardRef(
   }
 );
 
-// Add display name for debugging purposes.
 EntryField.displayName = "CheckoutField";
 
 export default EntryField;

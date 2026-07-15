@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/* Design tokens for the Sparky Cart facelift. BW brand blue + slate neutrals. */
+@theme {
+  --color-brand-50: #e6f6fd;
+  --color-brand-100: #c0e9fb;
+  --color-brand-200: #8ad8f7;
+  --color-brand-300: #4ac3f1;
+  --color-brand-400: #1cafe8;
+  --color-brand-500: #00a3e0; /* BW brand blue */
+  --color-brand-600: #0086ba;
+  --color-brand-700: #006894;
+  --color-brand-800: #084d6c;
+  --color-brand-900: #0d3a51;
+
+  --color-slate-850: #1b2431;
+  --color-ink: #333f48; /* BW dark slate */
+
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+/* Base page styling */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-100 text-slate-800 antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Subtle fade for progressively-revealed checkout fields */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}

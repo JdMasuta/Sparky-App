@@ -141,5 +141,5 @@ dist
 *.sqlite
 dev.sqlite
 
-# Package
-package-lock.json
+# Lockfiles are committed intentionally for reproducible `npm ci` in CI and on
+# the edge device (see .github/workflows). Do NOT ignore package-lock.json.

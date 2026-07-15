@@ -6,17 +6,22 @@ export const useRSLinxMonitor = () => {
   // Use a ref to store an array of active session IDs
   const sessionIdsRef = useRef([]);
 
+  const [mode, setMode] = useState("unknown");
+
   const checkConnection = async () => {
     try {
-      const response = await fetch("/api/RSLinx/status");
+      const response = await fetch("/api/pull/status");
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      return data;
+      setMode(data.mode ?? "unknown");
+      // Normalize to the { available } shape the Checkout page expects, so the
+      // existing green/red connection indicator keeps working unchanged.
+      return { available: data.connected === true, mode: data.mode, ...data };
     } catch (error) {
       console.error("Error checking connection:", error);
-      return { ok: false, message: error.message };
+      return { available: false, message: error.message };
     }
   };
 
@@ -29,7 +34,7 @@ export const useRSLinxMonitor = () => {
 
     try {
       console.log("Starting monitoring session:", sessionId);
-      const response = await fetch(`/api/rslinx/monitor/${sessionId}`, {
+      const response = await fetch(`/api/pull/monitor/${sessionId}`, {
         method: "GET",
       });
 
@@ -72,7 +77,7 @@ export const useRSLinxMonitor = () => {
 
     try {
       console.log("Stopping monitoring session:", sessionId);
-      const response = await fetch("/api/rslinx/monitor/stop", {
+      const response = await fetch("/api/pull/monitor/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId }),
@@ -115,7 +120,7 @@ export const useRSLinxMonitor = () => {
         sessionsToStop.map(async (sessionId) => {
           try {
             console.log("Stopping monitoring session:", sessionId);
-            const response = await fetch("/api/rslinx/monitor/stop", {
+            const response = await fetch("/api/pull/monitor/stop", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ sessionId }),
@@ -157,6 +162,7 @@ export const useRSLinxMonitor = () => {
     stopAllMonitoring, // Expose the new method
     checkConnection,
     isMonitoring,
+    mode, // "sim" | "real" | "unknown" — lets the UI show a SIMULATION badge
     error,
   };
 };
