@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { debounce as createDebounce } from "lodash";
 
 const FetchPullsData = ({ setTodaysPulls, setWeeksPulls }) => {
