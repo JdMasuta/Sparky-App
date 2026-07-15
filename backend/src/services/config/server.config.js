@@ -1,6 +1,7 @@
 // backend/src/services/config/server.config.js
 import path from "path";
 import { fileURLToPath } from "url";
+import { randomBytes } from "crypto";
 
 // Get application root directory
 const __filename = fileURLToPath(import.meta.url);
@@ -41,10 +42,30 @@ export const serverConfig = {
   },
 };
 
+// Admin authentication. The password is never stored — only its scrypt hash,
+// generated with `node backend/scripts/hash-password.js <password>`.
+const isProd = (process.env.NODE_ENV || "development") === "production";
+let sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  if (isProd) {
+    console.error(
+      "FATAL: SESSION_SECRET is not set in production. Admin sessions would be forgeable."
+    );
+  }
+  // Dev fallback: ephemeral random secret (sessions won't survive a restart).
+  sessionSecret = randomBytes(32).toString("hex");
+  if (!isProd) console.warn("SESSION_SECRET not set — using an ephemeral dev secret.");
+}
+
 export const securityConfig = {
-  // API key for secure operations (should use environment variable in production)
-  apiKey: process.env.API_KEY || "1023",
-  configPin: process.env.CONFIG_PIN || "1023",
+  adminPasswordHash: process.env.ADMIN_PASSWORD_HASH || "",
+  sessionSecret,
+  sessionTtlMs: Number(process.env.SESSION_TTL_MS || 8 * 60 * 60 * 1000), // 8h
+  cookieName: "sparky_session",
+  // Custom header required on admin mutations (CSRF defense; with SameSite=Strict
+  // cookies this is sufficient for a same-origin LAN app).
+  csrfHeader: "x-requested-by",
+  csrfValue: "sparky",
 
   rateLimiting: {
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -54,7 +75,7 @@ export const securityConfig = {
   },
   cors: {
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
+    allowedHeaders: ["Content-Type", "X-Requested-By"],
     credentials: true,
   },
 };

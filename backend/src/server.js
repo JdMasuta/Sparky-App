@@ -2,6 +2,7 @@
 import "./init/env.js"; // must load env before any config module reads it
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import path from "path";
@@ -21,6 +22,7 @@ import cableDataRoutes from "./services/routes/cableDataRoutes.js";
 import emailRoutes from "./services/routes/emailRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
 import authRoutes from "./services/routes/authRoutes.js";
+import { requireAdmin } from "./services/middleware/requireAdmin.js";
 import { sendReportToEmail } from "./services/controllers/emailController.js";
 import pullRoutes from "./services/routes/pullRoutes.js";
 import plcRoutes from "./services/routes/plcRoutes.js";
@@ -54,10 +56,19 @@ app.use(loggerMiddleware);
 
 app.use(limiter);
 
+// Security headers. CSP is disabled for now because the current built frontend
+// still references CDN scripts (removed in the Phase 4 facelift); once those are
+// gone a strict same-origin CSP can be enabled here.
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS restricted to an allowlist (was origin:"*" with credentials, which is
+// invalid and unsafe). In production the SPA is same-origin; dev uses :5173.
 app.use(
   cors({
-    origin: "*",
+    origin: serverConfig.corsOrigin,
     credentials: true,
+    methods: securityConfig.cors.methods,
+    allowedHeaders: securityConfig.cors.allowedHeaders,
   }),
 );
 app.use(express.json());
@@ -65,11 +76,12 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Setup
 app.use("/api/auth", authRoutes);
-// Intent-based Checkout endpoints (operator-facing, DB-validated).
+// Intent-based Checkout endpoints (operator-facing, open, DB-validated).
 app.use("/api/pull", pullRoutes);
-// Raw PLC diagnostics (admin-only; requireAdmin added in Phase 3).
-app.use("/api/plc", plcRoutes);
-app.use("/api/email", emailRoutes);
+// Raw PLC diagnostics — admin only.
+app.use("/api/plc", requireAdmin, plcRoutes);
+// Email report triggers — admin only.
+app.use("/api/email", requireAdmin, emailRoutes);
 app.use("/api", cableDataRoutes);
 
 // Health check endpoint — MUST be registered before the SPA catch-all below,

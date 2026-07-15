@@ -72,7 +72,12 @@ function useTableData() {
       try {
         const response = await fetch(url, {
           method,
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // Admin session cookie + CSRF header required for mutations.
+            "X-Requested-By": "sparky",
+          },
+          credentials: "include",
           // Only include a body for non-DELETE requests, converting to JSON.
           body: operation !== "delete" ? JSON.stringify(entry) : undefined,
         });

@@ -11,21 +11,31 @@ function Config() {
     e.preventDefault();
     setError("");
     try {
-      const res = await fetch("/api/auth/verify-pin", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        credentials: "include",
+        body: JSON.stringify({ password: pin }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (res.ok && data.success) {
         setIsUnlocked(true);
         setPin("");
       } else {
-        setError("Incorrect PIN");
+        setError(data.error || "Incorrect password");
       }
     } catch {
-      setError("Unable to verify PIN. Check server connection.");
+      setError("Unable to sign in. Check server connection.");
     }
+  };
+
+  const handleLock = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {
+      /* ignore */
+    }
+    setIsUnlocked(false);
   };
 
   if (!isUnlocked) {
@@ -36,13 +46,13 @@ function Config() {
           <p style={{ marginBottom: "1.5rem", color: "#555" }}>This page is locked.</p>
           <form onSubmit={handleUnlock}>
             <div className="form-group" style={{ textAlign: "left" }}>
-              <label htmlFor="pin-input">PIN</label>
+              <label htmlFor="pin-input">Password</label>
               <input
                 id="pin-input"
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="Enter PIN"
+                placeholder="Enter admin password"
                 autoFocus
               />
             </div>
@@ -58,7 +68,7 @@ function Config() {
     <div className="container">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1 className="config-title">Settings</h1>
-        <button onClick={() => setIsUnlocked(false)} style={{ padding: "0.4rem 1rem", background: "#555", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+        <button onClick={handleLock} style={{ padding: "0.4rem 1rem", background: "#555", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
           Lock
         </button>
       </div>

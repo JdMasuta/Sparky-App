@@ -14,33 +14,20 @@ const getTransporter = () => {
   return transporter;
 };
 
-// Create transporter with error handling
+// Create transporter with error handling. Never logs credentials.
 const createTransporter = () => {
   try {
-    // Log email configuration (excluding sensitive data in production)
-    console.log("Email Config:", {
+    console.log("Email transport:", {
       host: emailConfig.host,
       port: emailConfig.port,
-      auth: {
-        user: emailConfig.auth.user,
-        // Log partial password for debugging (last 4 chars)
-        pass: emailConfig.auth.pass
-          ? `...${emailConfig.auth.pass.slice(-4)}`
-          : "undefined",
-      },
+      user: emailConfig.auth?.user,
     });
 
     const transport = nodemailer.createTransport(emailConfig);
 
-    // Verify the connection configuration
-    transport.verify(function (error, success) {
+    transport.verify(function (error) {
       if (error) {
-        console.error("Transporter verification failed:", error);
-        console.log("Auth details - Username:", emailConfig.auth.user);
-        // Only log password in development
-        if (process.env.NODE_ENV !== "production") {
-          console.log("Auth details - Password:", emailConfig.auth.pass);
-        }
+        console.error("Transporter verification failed:", error.message);
       } else {
         console.log("Server is ready to take our messages");
       }
@@ -48,15 +35,7 @@ const createTransporter = () => {
 
     return transport;
   } catch (error) {
-    console.error("Error creating mail transporter:", error);
-    // Log authentication details on error
-    console.error("Email authentication failed with credentials:", {
-      username: emailConfig.auth.user,
-      password:
-        process.env.NODE_ENV !== "production"
-          ? emailConfig.auth.pass
-          : "[REDACTED]",
-    });
+    console.error("Error creating mail transporter:", error.message);
     throw error;
   }
 };
@@ -146,20 +125,7 @@ export const testEmailConfig = async (req, res) => {
       recipient: email,
     });
   } catch (error) {
-    console.error("Error in testEmailConfig:", error);
-    // Add detailed error logging
-    console.error("Email configuration details:", {
-      host: emailConfig.host,
-      port: emailConfig.port,
-      secure: emailConfig.secure,
-      auth: {
-        user: emailConfig.auth.user,
-        pass:
-          process.env.NODE_ENV !== "production"
-            ? emailConfig.auth.pass
-            : "[REDACTED]",
-      },
-    });
+    console.error("Error in testEmailConfig:", error.message);
     res.status(500).json({
       message: "Failed to send test email",
       error: error.message,

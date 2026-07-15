@@ -15,6 +15,7 @@ import {
   updateEntry,
   deleteEntry,
 } from "../controllers/databaseController.js";
+import { requireAdmin } from "../middleware/requireAdmin.js";
 
 const router = express.Router();
 
@@ -27,8 +28,8 @@ router.get("/table_data", getTableData);
 // Route: Get active entries for a given table
 router.get("/table_data/active", getActiveTableData);
 
-// Route: Delete all invalid checkouts
-router.delete("/purge", deleteInvalidCheckouts);
+// Route: Delete all invalid checkouts (admin only)
+router.delete("/purge", requireAdmin, deleteInvalidCheckouts);
 
 // New optimized routes
 
@@ -42,14 +43,30 @@ router.get("/checkouts/stats", getCheckoutStats);
 router.post("/checkouts/detailed/after", getCheckoutsAfterTimestampWithDetails);
 
 // RESTful API
+//
+// Reads stay open (the Report page and Checkout option lists depend on them).
+// Creating a checkout is the operator's one write and stays open (validated
+// server-side). Every OTHER mutation — creating non-checkout rows, and all
+// updates/deletes — requires an admin session + CSRF header.
 
-// CRUD operations
+// Operator: submit a checkout (open, but FK/quantity validated). The static
+// path has no :table param, so inject it for the shared createEntry handler.
+router.post(
+  "/checkouts",
+  (req, _res, next) => {
+    req.params.table = "checkouts";
+    next();
+  },
+  createEntry
+);
+
+// Admin-only writes.
+router.post("/:table", requireAdmin, createEntry);
+router.put("/:table/:id", requireAdmin, updateEntry);
+router.delete("/:table/:id", requireAdmin, deleteEntry);
+
+// General data retrieval (open).
 router.get("/:table/:id", getById);
-router.post("/:table", createEntry);
-router.put("/:table/:id", updateEntry);
-router.delete("/:table/:id", deleteEntry);
-
-// General data retrieval
 router.get("/:table", getAllData);
 
 export default router;

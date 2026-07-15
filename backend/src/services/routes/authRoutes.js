@@ -1,15 +1,10 @@
 import express from "express";
-import { securityConfig } from "../config/server.config.js";
+import { login, logout, session } from "../controllers/authController.js";
 
 const router = express.Router();
 
-router.post("/verify-pin", (req, res) => {
-  const { pin } = req.body;
-  if (pin === securityConfig.configPin) {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false, message: "Invalid PIN" });
-  }
-});
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/session", session);
 
 export default router;
