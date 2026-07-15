@@ -1,6 +1,6 @@
 /* global __APP_VERSION__ */
 import { useEffect, useState } from "react";
-import { RefreshCw, Trash2, Activity } from "lucide-react";
+import { RefreshCw, Trash2, Activity, DownloadCloud } from "lucide-react";
 import Card from "../ui/Card.jsx";
 import Button from "../ui/Button.jsx";
 import Badge from "../ui/Badge.jsx";
@@ -19,12 +19,20 @@ export default function AdminSystem() {
   const [reading, setReading] = useState(false);
   const [purging, setPurging] = useState(false);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [sysInfo, setSysInfo] = useState(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const loadDiagnostics = async () => {
     try {
-      const [s, t] = await Promise.all([api.get("/plc/status"), api.get("/plc/tags")]);
+      const [s, t, info] = await Promise.all([
+        api.get("/plc/status"),
+        api.get("/plc/tags"),
+        api.get("/system/info").catch(() => null),
+      ]);
       setStatus(s);
       setTags(t.tags || []);
+      setSysInfo(info);
     } catch (err) {
       addAlert({ message: `Diagnostics unavailable: ${err.message}`, severity: "error", timeout: 6 });
     }
@@ -33,6 +41,24 @@ export default function AdminSystem() {
   useEffect(() => {
     loadDiagnostics();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyUpdate = async () => {
+    setUpdating(true);
+    try {
+      const res = await api.post("/system/update");
+      addAlert({ message: res.message || "Update started.", severity: "info", timeout: 6 });
+      setConfirmUpdate(false);
+    } catch (err) {
+      addAlert({
+        message: err.status === 501 ? "Updates run only on the edge device." : err.message,
+        severity: err.status === 501 ? "warning" : "error",
+        timeout: 6,
+      });
+      setConfirmUpdate(false);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const readAll = async () => {
     setReading(true);
@@ -66,10 +92,19 @@ export default function AdminSystem() {
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
-        <Card title="Version">
+        <Card
+          title="Version & updates"
+          actions={
+            <Button variant="secondary" size="sm" onClick={() => setConfirmUpdate(true)}>
+              <DownloadCloud className="h-4 w-4" /> Check &amp; apply update
+            </Button>
+          }
+        >
           <p className="text-2xl font-semibold text-slate-800">Sparky Cart {version}</p>
           <p className="mt-1 text-xs text-slate-400">
-            Remote updates are delivered as versioned releases and applied on-device.
+            {sysInfo
+              ? `Node ${sysInfo.node} · ${sysInfo.environment} · PLC ${sysInfo.plcMode}`
+              : "Remote updates are delivered as versioned releases and applied on-device."}
           </p>
         </Card>
 
@@ -145,6 +180,17 @@ export default function AdminSystem() {
         title="Purge invalid checkouts?"
         confirmLabel="Purge"
         message="This permanently deletes all checkouts with a quantity of zero."
+      />
+
+      <ConfirmDialog
+        isOpen={confirmUpdate}
+        onClose={() => setConfirmUpdate(false)}
+        onConfirm={applyUpdate}
+        busy={updating}
+        variant="primary"
+        title="Check for and apply an update?"
+        confirmLabel="Update now"
+        message="If a newer release is available it will be downloaded, verified, and installed. Services will restart, and the update rolls back automatically if the health check fails."
       />
     </div>
   );

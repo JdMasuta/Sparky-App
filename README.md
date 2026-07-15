@@ -87,13 +87,62 @@ All configuration is via environment variables; see `backend/.env.example`. Secr
 (email password, admin password hash, session/bridge secrets) belong only in
 `SPARKY_DATA_DIR/.env`, never in tracked scripts.
 
-## Deployment
+Generate the admin password hash and a session secret:
 
-Production runs natively on the edge device via the portable Node runtime — the frontend
-is built to static files and served by Express on a single port; the backend and PLC
-bridge are supervised. Remote updates are delivered as versioned GitHub Releases and
-applied on‑device by an updater with checksum verification and rollback. See `deploy/`
-(added during the v3 CI/CD work).
+```bash
+node backend/scripts/hash-password.js "your admin password"   # -> ADMIN_PASSWORD_HASH=...
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"  # -> SESSION_SECRET / BRIDGE_TOKEN
+```
+
+## Deployment (edge device)
+
+Production runs natively via the bundled portable Node runtime — nothing is installed on
+the device.
+
+```bat
+deploy\build.bat            :: npm ci --omit=dev (backend + microservice) + vite build
+deploy\start-prod.bat       :: serve UI+API on :3000, PLC bridge on 127.0.0.1:8000, supervised
+deploy\register-startup.bat :: (once, elevated) run at boot via Task Scheduler
+```
+
+- The built frontend is served by Express on a single port; there is no Vite server and
+  no `--host` in production. `PLC_MODE=real` connects to the PLC; `PLC_MODE=sim` runs the
+  simulator for commissioning.
+- Data (SQLite DB, `.env`, logs) lives in `SPARKY_DATA_DIR` (default `.\data`), outside the
+  code/release tree, so updates never clobber it.
+
+### Remote updates
+
+CI/CD lives in `.github/workflows`:
+
+- **ci.yml** — on every push/PR: backend + microservice `node --test` (PLC bridge tested
+  with `PLC_MODE=sim`) and the frontend lint + build. Node is pinned to 23.6.0 to match the
+  portable runtime.
+- **release.yml** — on a `v*` tag: runs the tests, builds the frontend, installs win‑x64
+  production deps (bundling the `better-sqlite3` prebuild), zips a bundle with a SHA‑256
+  `manifest.json`, and publishes a GitHub Release.
+
+On the device, `deploy\update.bat` (or the Admin Dashboard → System → *Check & apply
+update*) runs the Node updater (`deploy/updater.mjs`): it compares the installed version to
+the latest release, downloads and **verifies the SHA‑256**, backs up the current install,
+swaps in the new code, restarts, health‑checks `/health`, and **rolls back automatically**
+on failure. It uses only the portable `node.exe` and Windows‑built‑in `tar` — no PowerShell.
+
+> Optional: a `Dockerfile`/compose can be added for a reproducible dev/CI environment, but
+> the edge device itself runs natively (Docker can't be installed there either).
+
+## Real‑PLC checklist
+
+The live EtherNet/IP path (`PLC_MODE=real`) cannot be exercised without the hardware.
+Before relying on it on‑site:
+
+1. Confirm the tag names/types in `microservice/src/tags.js` against the running PLC program
+   (encoder `quantity`/`backupQuantity` are REAL, `completeRequest`/`completeAck` are BOOL,
+   the operator strings are STRING, `stepNumber` is DINT).
+2. Set `PLC_IP` (and `PLC_SLOT` if not 0) in the data‑dir `.env`.
+3. Verify connectivity from the Admin Dashboard → System → PLC diagnostics (*Read all tags*).
+4. Dry‑run a pull with the physical HMI and confirm the encoder ramps and `completeRequest`
+   fires as the Checkout monitor expects.
 
 ## License
 

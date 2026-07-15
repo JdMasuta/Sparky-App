@@ -26,6 +26,7 @@ import { requireAdmin } from "./services/middleware/requireAdmin.js";
 import { sendReportToEmail } from "./services/controllers/emailController.js";
 import pullRoutes from "./services/routes/pullRoutes.js";
 import plcRoutes from "./services/routes/plcRoutes.js";
+import systemRoutes from "./services/routes/systemRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
