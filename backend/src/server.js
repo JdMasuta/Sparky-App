@@ -18,16 +18,12 @@ import {
   securityConfig,
 } from "./services/config/server.config.js";
 import cableDataRoutes from "./services/routes/cableDataRoutes.js";
-import RSLinxRoutes from "./services/routes/RSLinxRoutes.js";
 import emailRoutes from "./services/routes/emailRoutes.js";
-import utilitiesRoutes from "./services/routes/utilitiesRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
 import authRoutes from "./services/routes/authRoutes.js";
-import {
-  sendCheckoutReport,
-  sendReportToEmail,
-} from "./services/controllers/emailController.js";
-import plcBridgeRoutes from "./services/routes/plcBridgeRoutes.js";
+import { sendReportToEmail } from "./services/controllers/emailController.js";
+import pullRoutes from "./services/routes/pullRoutes.js";
+import plcRoutes from "./services/routes/plcRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -69,10 +65,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Setup
 app.use("/api/auth", authRoutes);
-// app.use("/api/rslinx", RSLinxRoutes);
-app.use("/api/rslinx", plcBridgeRoutes);
+// Intent-based Checkout endpoints (operator-facing, DB-validated).
+app.use("/api/pull", pullRoutes);
+// Raw PLC diagnostics (admin-only; requireAdmin added in Phase 3).
+app.use("/api/plc", plcRoutes);
 app.use("/api/email", emailRoutes);
-app.use("/api/utilities", utilitiesRoutes);
 app.use("/api", cableDataRoutes);
 
 // Health check endpoint — MUST be registered before the SPA catch-all below,

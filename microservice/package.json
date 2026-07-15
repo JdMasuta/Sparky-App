@@ -1,22 +1,19 @@
 {
   "name": "plc-link",
   "version": "3.0.0",
-  "description": "Bridging microservice for PLC operation from Sparky's remote web-app",
+  "description": "PLC bridge microservice for the Sparky Cart web app (EtherNet/IP driver + behavioral simulator). Binds to loopback only.",
   "license": "ISC",
   "author": "Josh Meesey",
-  "type": "commonjs",
-  "main": "server.js",
+  "type": "module",
+  "main": "src/server.js",
   "scripts": {
-    "test": "node server.js && node test.mjs",
-    "dev": "nodemon server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "ethernet-ip": "^2.0.0",
-    "express": "^4.21.2",
-    "express-ws": "^5.0.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
+    "express": "^4.21.2"
   }
 }

@@ -1,114 +1,61 @@
-// ../components/entry/usePLCTags.jsx
+// Checkout PLC interaction, expressed as INTENTS against the backend gateway.
+// The browser no longer writes raw PLC tags; it tells the backend which field
+// the operator set, and the backend validates it against the DB and performs
+// the whitelisted tag write via the loopback bridge.
 import { useState } from "react";
+
+// Checkout form field -> intent field understood by POST /api/pull/field.
+const FIELD_INTENT = { name: "user", project: "project", item: "item" };
 
 export const usePLCTags = () => {
   const [error, setError] = useState(null);
 
-  const tagMappings = {
-    name: "_200_GLB.StringData[0]",
-    project: "_200_GLB.StringData[1]",
-    item: "_200_GLB.StringData[2]",
-    stepNumber: "_200_GLB.DintData[2]",
-  };
-
-  const stepNumbers = {
-    name: 2,
-    project: 3,
-    item: 4,
+  const postField = async (field, value) => {
+    const res = await fetch("/api/pull/field", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ field, value }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    return res.json();
   };
 
   const writeToPLC = async (fieldName, value) => {
+    const intent = FIELD_INTENT[fieldName];
+    if (!intent) return true; // e.g. quantity — nothing to hand off to the PLC
     try {
-      const nextStep = stepNumbers[fieldName];
-      if (!nextStep) {
-        return true; // Field doesn't need step number update (e.g., quantity)
-      }
-
-      const tags = {
-        [tagMappings[fieldName]]: value,
-        [tagMappings.stepNumber]: nextStep,
-      };
-
-      const response = await fetch("/api/rslinx/batch/write", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tags }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
-      return true;
-    } catch (error) {
-      console.error("Error writing to PLC:", error);
-      setError(error.message);
-      return false;
-    }
-  };
-
-  const resetStepInPLC = async () => {
-    try {
-      const tags = {
-        [tagMappings.stepNumber]: 1,
-      };
-
-      const response = await fetch("/api/rslinx/batch/write", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tags }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
+      await postField(intent, value);
       setError(null);
       return true;
-    } catch (error) {
-      console.error("Error resetting PLC step:", error);
-      setError(error.message);
+    } catch (err) {
+      console.error("Error writing field to PLC:", err);
+      setError(err.message);
       return false;
     }
   };
 
-  const resetPLCvalues = async () => {
+  const resetPull = async () => {
     try {
-      // Send a POST request to clear string data
-      response = await fetch("/api/RSLinx/batch/write", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tags: [
-            "_200_GLB.StringData[0]",
-            "_200_GLB.StringData[1]",
-            "_200_GLB.StringData[2]",
-          ],
-          values: ["", "", ""],
-        }),
-        signal: controller.signal, // Use the AbortController signal
-      });
-      await response.json();
+      const res = await fetch("/api/pull/reset", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setError(null);
       return true;
-    } catch (error) {
-      setError(error.message);
+    } catch (err) {
+      console.error("Error resetting pull:", err);
+      setError(err.message);
       return false;
     }
   };
 
+  // Both reset entry points now clear the handshake (step 1), which the PLC/sim
+  // treats as a full cycle reset (clears the operator/project/item strings).
   return {
     writeToPLC,
-    resetStepInPLC,
-    resetPLCvalues,
+    resetStepInPLC: resetPull,
+    resetPLCvalues: resetPull,
     error,
   };
 };
