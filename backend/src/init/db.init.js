@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { serverConfig } from "../services/config/server.config.js";
+import { runMigrations } from "./migrations.js";
 
 let config;
 try {
@@ -45,7 +46,7 @@ const tableExists = (db, tableName) => {
   }
 };
 
-const createTables = (db) => {
+export const createTables = (db) => {
   try {
     const missingTables = REQUIRED_TABLES.filter(
       (table) => !tableExists(db, table)
@@ -167,6 +168,27 @@ const createTables = (db) => {
   }
 };
 
+// One-time relocation: if the DB lives at the legacy in-tree path and not yet
+// at the (production) data dir, copy it over so we don't start from an empty DB
+// after moving SPARKY_DATA_DIR outside the release tree. Runs only when the two
+// paths differ (i.e. SPARKY_DATA_DIR is set to a non-legacy location).
+const relocateLegacyDatabaseIfNeeded = () => {
+  const legacyPath = path.join(
+    serverConfig.paths.legacyDatabase,
+    path.basename(config.filename)
+  );
+  if (
+    legacyPath !== config.filename &&
+    !fs.existsSync(config.filename) &&
+    fs.existsSync(legacyPath)
+  ) {
+    fs.copyFileSync(legacyPath, config.filename);
+    console.log(
+      `Relocated database from legacy path ${legacyPath} to ${config.filename}`
+    );
+  }
+};
+
 export const initializeDatabase = () => {
   try {
     const dbDir = path.dirname(config.filename);
@@ -181,6 +203,8 @@ export const initializeDatabase = () => {
       }
     }
 
+    relocateLegacyDatabaseIfNeeded();
+
     db = new Database(config.filename, {
       verbose: config.verbose ? console.log : null,
       timeout: config.timeout,
@@ -194,6 +218,7 @@ export const initializeDatabase = () => {
     }
 
     createTables(db);
+    runMigrations(db);
     return db;
   } catch (error) {
     console.error("Database initialization failed:", error.message);

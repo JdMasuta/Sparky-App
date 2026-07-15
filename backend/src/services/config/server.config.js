@@ -5,7 +5,18 @@ import { fileURLToPath } from "url";
 // Get application root directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, "../../");
+const ROOT_DIR = path.resolve(__dirname, "../../"); // backend/src
+
+// Legacy data location (inside the code tree). Kept for the one-time relocation.
+const LEGACY_DATA_DIR = path.join(ROOT_DIR, "database");
+
+// Runtime data directory (SQLite DB, .env, logs). In production this is set to a
+// path OUTSIDE the release tree (via SPARKY_DATA_DIR) so updates never clobber
+// data; unset (local dev) it defaults to the legacy in-tree location so DX is
+// unchanged.
+const DATA_DIR = process.env.SPARKY_DATA_DIR
+  ? path.resolve(process.env.SPARKY_DATA_DIR)
+  : LEGACY_DATA_DIR;
 
 export const serverConfig = {
   port: process.env.PORT || 3000,
@@ -20,12 +31,13 @@ export const serverConfig = {
   environment: process.env.NODE_ENV || "development",
   paths: {
     root: ROOT_DIR,
-    logs: path.join(ROOT_DIR, "logs"),
-    database: path.join(ROOT_DIR, "database"),
+    logs: path.join(DATA_DIR, "logs"),
+    database: DATA_DIR,
+    legacyDatabase: LEGACY_DATA_DIR,
   },
   logging: {
     level: process.env.LOG_LEVEL || "info",
-    file: path.join(ROOT_DIR, "logs", "server.log"),
+    file: path.join(DATA_DIR, "logs", "server.log"),
   },
 };
 

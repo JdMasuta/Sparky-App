@@ -1,5 +1,5 @@
 // backend/src/server.js
-import "dotenv/config";
+import "./init/env.js"; // must load env before any config module reads it
 import express from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
@@ -75,10 +75,21 @@ app.use("/api/email", emailRoutes);
 app.use("/api/utilities", utilitiesRoutes);
 app.use("/api", cableDataRoutes);
 
+// Health check endpoint — MUST be registered before the SPA catch-all below,
+// otherwise `app.get("*")` shadows it and serves index.html. The edge updater
+// and CI probe this endpoint.
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    environment: serverConfig.environment,
+    databasePath: serverConfig.paths.database,
+  });
+});
+
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
-// Handle React routing by serving index.html for all unmatched routes
+// Handle React routing by serving index.html for all unmatched non-API routes
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -102,15 +113,6 @@ if (serverConfig.environment === "development") {
     next();
   });
 }
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    environment: serverConfig.environment,
-    databasePath: serverConfig.paths.database,
-  });
-});
 
 // Utility function to format timestamp
 const formatTimestamp = (date) => {
