@@ -17,6 +17,7 @@
 :: ============================================================================
 setlocal EnableDelayedExpansion
 
+set "SCRIPT_PATH=%~f0"
 set "BASE_DIR=%~dp0"
 if "%BASE_DIR:~-1%"=="\" set "BASE_DIR=%BASE_DIR:~0,-1%"
 
@@ -78,9 +79,9 @@ if /I "%MODE%"=="prod" (
   echo Starting Sparky in PRODUCTION mode ^(PLC=%PLC_MODE%^)...
   :: Each service in its own supervised window. The whole cmd /k argument is a
   :: SINGLE quoted token — this is what the old start-prod.bat got wrong.
-  start "Sparky PLC Bridge" cmd /k ""%~f0" __supervise bridge"
+  start "Sparky PLC Bridge" cmd /k ""%SCRIPT_PATH%" __supervise bridge"
   timeout /t 2 /nobreak >nul
-  start "Sparky Backend" cmd /k ""%~f0" __supervise backend"
+  start "Sparky Backend" cmd /k ""%SCRIPT_PATH%" __supervise backend"
   echo.
   echo   UI + API:   http://localhost:%PORT%
   echo   PLC bridge: http://%BRIDGE_HOST%:%BRIDGE_PORT% ^(loopback only^)
