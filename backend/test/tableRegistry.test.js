@@ -55,6 +55,14 @@ test("validateInsert rejects duplicate (case-insensitive) unique values with 409
   assert.equal(dup.field, "project_number");
 });
 
+test("user_type is a fixed enum (writes accept only the six roles)", () => {
+  const db = freshDb();
+  assert.ok(!validateInsert(db, "users", { name: "Zed", user_type: "ENGINEER" }).status);
+  const bad = validateInsert(db, "users", { name: "Zed2", user_type: "EMPLOYEE" });
+  assert.equal(bad.status, 422);
+  assert.equal(bad.field, "user_type");
+});
+
 test("validateInsert enforces enum values", () => {
   const db = freshDb();
   const r = validateInsert(db, "projects", {

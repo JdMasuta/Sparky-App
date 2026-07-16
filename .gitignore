@@ -139,7 +139,7 @@ dist
 
 # SQLite
 *.sqlite
-dev.sqlite
+*.backup
 
 # Lockfiles are committed intentionally for reproducible `npm ci` in CI and on
 # the edge device (see .github/workflows). Do NOT ignore package-lock.json.

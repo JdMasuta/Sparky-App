@@ -73,3 +73,15 @@ test("auto-pull starts a pull shortly after reaching step 4", async () => {
   await sleep(25);
   assert.equal(e.state().pulling, true);
 });
+
+test("_SIM test-program bool tags are exposed and round-trip", () => {
+  const e = new SimEngine(fastCfg);
+  // defaults are false
+  assert.equal(e.read(["opEnable", "estopLight"]).opEnable, false);
+  e.write({ opEnable: true, jogFwd: true, beaconRunningB: true });
+  const r = e.read(["opEnable", "jogFwd", "beaconRunningB", "jogRev"]);
+  assert.equal(r.opEnable, true);
+  assert.equal(r.jogFwd, true);
+  assert.equal(r.beaconRunningB, true);
+  assert.equal(r.jogRev, false);
+});

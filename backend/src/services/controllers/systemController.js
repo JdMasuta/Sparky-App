@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { spawn } from "child_process";
+import { getMigrationWarnings } from "../../init/db.init.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, "../../../"); // backend/
@@ -28,6 +29,7 @@ export const getInfo = async (req, res) => {
     plcMode: (process.env.PLC_MODE || "sim").toLowerCase(),
     node: process.version,
     environment: process.env.NODE_ENV || "development",
+    warnings: getMigrationWarnings(),
   });
 };
 
@@ -39,8 +41,9 @@ export const triggerUpdate = async (req, res) => {
     });
   }
   try {
-    const script = path.join(INSTALL_ROOT, "deploy", "update.bat");
-    const child = spawn("cmd.exe", ["/c", script], {
+    const script = path.join(INSTALL_ROOT, "sparky.bat");
+    const child = spawn("cmd.exe", ["/c", script, "update"], {
+      cwd: INSTALL_ROOT,
       detached: true,
       stdio: "ignore",
       windowsHide: true,

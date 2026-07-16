@@ -46,10 +46,9 @@ backend/        Express API, SQLite, reporting, PLC gateway
 frontend/       React + Vite single-page app (built into backend/src/public)
 microservice/   PLC bridge (EtherNet/IP driver + behavioral simulator)
 runtime/        Portable Node runtime (node.exe) — the only Node on the edge device
-deploy/         Production launch + update scripts (added in v3)
+deploy/         Edge updater (updater.mjs)
 data/           Runtime data (SQLite DB, .env, logs) — git-ignored, outside releases
-setup.bat       Sets PATH to portable Node + non-secret env defaults
-start.bat       Local development launcher
+sparky.bat      Single entry point: start / stop / build / update / register
 ```
 
 ## Database
@@ -58,6 +57,42 @@ SQLite, created/upgraded programmatically on boot (`backend/src/init`). Core tab
 `users`, `projects`, `items`, `checkouts`, plus `report_recipients` and
 `weekly_report_status`. The DB file and secrets live in `SPARKY_DATA_DIR`
 (default `./data`), **outside** the code/release tree so updates never clobber data.
+
+### Data directory & database file
+
+Where the data lives and how the DB file is named is controlled by two env vars
+(set them in `.env` — see below):
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `SPARKY_DATA_DIR` | Directory holding the SQLite DB, `.env`, and `logs/`. Kept outside the release tree so updates never touch it. | `<repo>/data` |
+| `NODE_ENV` | Selects the default DB file name. | `development` |
+| `SPARKY_DB_FILE` | Overrides the DB file name (bare filename, lives in `SPARKY_DATA_DIR`). | — |
+
+The DB file name follows `NODE_ENV`: **`dev.sqlite`** in development, **`prod.sqlite`**
+in production, `test.sqlite` under test. So the full path is
+`%SPARKY_DATA_DIR%\<env>.sqlite` (e.g. `data\prod.sqlite` in production). Set
+`SPARKY_DB_FILE=something.sqlite` only if you need a non-default name.
+
+`SPARKY_DATA_DIR` can be set two ways:
+
+- **In `backend/.env`** (handy for development):
+  ```bash
+  SPARKY_DATA_DIR=D:\sparky-data
+  ```
+  The backend pre-reads `backend/.env` to discover this before opening the DB.
+- **In the OS environment** (production): `sparky.bat` exports
+  `SPARKY_DATA_DIR=<repo>\data` before launching, and the backend then also loads
+  secrets from `%SPARKY_DATA_DIR%\.env`.
+
+Precedence (highest first): real OS environment → `%SPARKY_DATA_DIR%\.env` →
+`backend/.env`.
+
+> **First production boot:** the legacy stack ran as `NODE_ENV=development`, so its
+> live data is in `dev.sqlite`. On the first `--prod` start, if no `prod.sqlite`
+> exists yet but a `dev.sqlite` is present in the data dir, the backend copies it to
+> `prod.sqlite` once (logging a NOTICE). Confirm the data, then remove the old
+> `dev.sqlite`.
 
 ## Getting started (development)
 
@@ -72,11 +107,14 @@ Prerequisites: Node 23.6.0 (matches the bundled runtime) and npm.
 # configure
 cp backend/.env.example backend/.env   # then fill in the blanks
 
-# run (three terminals, or use the dev launcher on Windows)
+# run (three terminals; on Windows just: sparky start)
 (cd microservice && PLC_MODE=sim npm run dev)   # virtual PLC on 127.0.0.1:8000
 (cd backend && npm run dev)                      # API + gateway on :3000
 (cd frontend && npm run dev)                     # Vite dev server on :5173
 ```
+
+On Windows, `sparky start` launches all three (bridge in sim mode, backend, Vite)
+through the bundled portable Node — no global Node install required.
 
 With `PLC_MODE=sim` the microservice exposes sim‑control endpoints (start/complete/reset a
 pull) so the full Checkout flow can be exercised without hardware.
@@ -99,11 +137,19 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"  # -> S
 Production runs natively via the bundled portable Node runtime — nothing is installed on
 the device.
 
+A single `sparky.bat` is the only entry point (dev and prod, via flags):
+
 ```bat
-deploy\build.bat            :: npm ci --omit=dev (backend + microservice) + vite build
-deploy\start-prod.bat       :: serve UI+API on :3000, PLC bridge on 127.0.0.1:8000, supervised
-deploy\register-startup.bat :: (once, elevated) run at boot via Task Scheduler
+sparky build                :: npm ci --omit=dev (backend + microservice) + vite build
+sparky start --prod         :: serve UI+API on :3000, PLC bridge on 127.0.0.1:8000, supervised
+sparky start --prod --sim   :: same, but run the simulator (commissioning)
+sparky stop                 :: stop the running services
+sparky register             :: (once, elevated) run "sparky start --prod" at boot
 ```
+
+`sparky start --prod` forces `NODE_ENV=production` and (unless `--sim` is given)
+`PLC_MODE=real`; each service runs in its own restart-on-crash supervised window.
+`sparky start` alone is the dev launcher (Vite + nodemon + sim bridge).
 
 - The built frontend is served by Express on a single port; there is no Vite server and
   no `--host` in production. `PLC_MODE=real` connects to the PLC; `PLC_MODE=sim` runs the
@@ -122,11 +168,14 @@ CI/CD lives in `.github/workflows`:
   production deps (bundling the `better-sqlite3` prebuild), zips a bundle with a SHA‑256
   `manifest.json`, and publishes a GitHub Release.
 
-On the device, `deploy\update.bat` (or the Admin Dashboard → System → *Check & apply
-update*) runs the Node updater (`deploy/updater.mjs`): it compares the installed version to
-the latest release, downloads and **verifies the SHA‑256**, backs up the current install,
-swaps in the new code, restarts, health‑checks `/health`, and **rolls back automatically**
-on failure. It uses only the portable `node.exe` and Windows‑built‑in `tar` — no PowerShell.
+On the device, `sparky update` (or the Admin Dashboard → System → *Check & apply
+update*) runs the Node updater (`deploy/updater.mjs`) from `%TEMP%` so nothing executes
+from inside the tree being replaced: it compares the installed version to the latest
+release, downloads and **verifies the SHA‑256**, backs up the current install (dirs +
+`sparky.bat`), swaps in the new code, restarts via `sparky start --prod`, health‑checks
+`/health`, and **rolls back automatically** on failure. It uses only the portable
+`node.exe` and Windows‑built‑in `tar` — no PowerShell. Use `sparky update --check` to
+report an available update without applying it.
 
 > Optional: a `Dockerfile`/compose can be added for a reproducible dev/CI environment, but
 > the edge device itself runs natively (Docker can't be installed there either).

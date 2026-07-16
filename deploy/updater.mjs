@@ -17,8 +17,16 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const INSTALL_ROOT = path.resolve(__dirname, ".."); // contains backend/, microservice/, runtime/, data/
+// The updater is normally copied to %TEMP% and run from there (so it doesn't sit
+// inside the tree it replaces), so the install root is passed via env; fall back
+// to the location relative to this file for a direct in-tree run.
+const INSTALL_ROOT = process.env.SPARKY_INSTALL_ROOT
+  ? path.resolve(process.env.SPARKY_INSTALL_ROOT)
+  : path.resolve(__dirname, ".."); // contains backend/, microservice/, runtime/, data/
+// Directories and root files swapped on update (the portable runtime and the
+// data dir are deliberately NOT touched).
 const REPLACE_DIRS = ["backend", "microservice", "deploy"];
+const REPLACE_FILES = ["sparky.bat", "README.md"];
 
 // ---- pure helpers (unit-tested) -------------------------------------------
 export function parseVersion(v) {
@@ -150,11 +158,15 @@ async function main() {
   console.log("Extracting…");
   await run("tar", ["-xf", zipPath, "-C", extractDir]);
 
+  // Make sure our own cwd is not inside a directory we're about to rename.
+  process.chdir(os.tmpdir());
+
+  const sparky = path.join(INSTALL_ROOT, "sparky.bat");
   // Stop services before swapping files.
   console.log("Stopping services…");
-  await run(path.join(INSTALL_ROOT, "deploy", "stop.bat"), [], { shell: true }).catch(() => {});
+  await run(sparky, ["stop"], { shell: true }).catch(() => {});
 
-  // Backup current, then replace.
+  // Backup current dirs + root files, then replace.
   const backup = path.join(INSTALL_ROOT, "releases", `backup-${current}-${Date.now()}`);
   await fs.mkdir(backup, { recursive: true });
   console.log(`Backing up current install to ${backup}…`);
@@ -162,12 +174,28 @@ async function main() {
     const src = path.join(INSTALL_ROOT, dir);
     if (await exists(src)) await fs.rename(src, path.join(backup, dir));
   }
+  for (const file of REPLACE_FILES) {
+    const src = path.join(INSTALL_ROOT, file);
+    if (await exists(src)) await fs.rename(src, path.join(backup, file));
+  }
+  const restoreBackup = async () => {
+    for (const name of [...REPLACE_DIRS, ...REPLACE_FILES]) {
+      const dest = path.join(INSTALL_ROOT, name);
+      await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
+      if (await exists(path.join(backup, name)))
+        await fs.rename(path.join(backup, name), dest);
+    }
+  };
   try {
     for (const dir of REPLACE_DIRS) {
       await fs.cp(path.join(extractDir, dir), path.join(INSTALL_ROOT, dir), { recursive: true });
     }
+    for (const file of REPLACE_FILES) {
+      const from = path.join(extractDir, file);
+      if (await exists(from)) await fs.cp(from, path.join(INSTALL_ROOT, file));
+    }
     console.log("Restarting services…");
-    await run(path.join(INSTALL_ROOT, "deploy", "start-prod.bat"), [], { shell: true, detached: true });
+    await run(sparky, ["start", "--prod"], { shell: true, detached: true });
 
     console.log("Health-checking…");
     if (!(await healthCheck(cfg.port))) throw new Error("Health check failed after update");
@@ -175,12 +203,8 @@ async function main() {
     console.log(`Update to ${remote} complete.`);
   } catch (err) {
     console.error(`Update failed: ${err.message}. Rolling back…`);
-    for (const dir of REPLACE_DIRS) {
-      const dest = path.join(INSTALL_ROOT, dir);
-      await fs.rm(dest, { recursive: true, force: true });
-      await fs.rename(path.join(backup, dir), dest);
-    }
-    await run(path.join(INSTALL_ROOT, "deploy", "start-prod.bat"), [], { shell: true, detached: true }).catch(() => {});
+    await restoreBackup();
+    await run(sparky, ["start", "--prod"], { shell: true, detached: true }).catch(() => {});
     throw err;
   }
 }

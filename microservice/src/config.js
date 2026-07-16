@@ -18,6 +18,12 @@ export const config = {
   plcSlot: Number(process.env.PLC_SLOT || 0),
   connectTimeoutMs: Number(process.env.PLC_TIMEOUT_MS || 5000),
 
+  // Keepalive read that stops the PLC from dropping the idle session (Logix
+  // closes CIP connections after ~30s and TCP after ~120s of silence, which
+  // shows up as an ECONNRESET/reconnect loop). Alias or raw tag name; 0 disables.
+  plcHeartbeatTag: process.env.PLC_HEARTBEAT_TAG || "completeAck",
+  plcHeartbeatMs: Number(process.env.PLC_HEARTBEAT_MS || 15000),
+
   // Simulator
   simAutoPull: /^(1|true|yes)$/i.test(process.env.SIM_AUTO_PULL || ""),
   simAutoPullDelayMs: Number(process.env.SIM_AUTO_PULL_DELAY_MS || 2000),

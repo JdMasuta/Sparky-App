@@ -2,11 +2,57 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { createTables } from "../src/init/db.init.js";
-import { runMigrations, LATEST_MIGRATION } from "../src/init/migrations.js";
+import { runMigrations, LATEST_MIGRATION, parseAddedDate } from "../src/init/migrations.js";
 import { freshDb } from "./helpers.js";
 
 const cols = (db, table) =>
   db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+
+test("migration 4 adopts the items drift columns", () => {
+  const db = freshDb();
+  for (const c of ["purchase_type", "manufacturer_number", "spec"]) {
+    assert.ok(cols(db, "items").includes(c), `items.${c} exists`);
+  }
+});
+
+test("migration 5 normalizes T-separated checkout timestamps", () => {
+  const db = new Database(":memory:");
+  createTables(db);
+  const u = db.prepare("INSERT INTO users (name) VALUES ('U')").run().lastInsertRowid;
+  const p = db.prepare("INSERT INTO projects (project_number,name) VALUES ('P','P')").run().lastInsertRowid;
+  const i = db.prepare("INSERT INTO items (sku,name) VALUES ('S','S')").run().lastInsertRowid;
+  db.prepare("INSERT INTO checkouts (user_id,project_id,item_id,quantity,timestamp) VALUES (?,?,?,?,?)")
+    .run(u, p, i, 3, "2025-03-01T09:15:00");
+  runMigrations(db);
+  const ts = db.prepare("SELECT timestamp FROM checkouts").get().timestamp;
+  assert.equal(ts, "2025-03-01 09:15:00");
+});
+
+test("migration 6 dates projects from their 'Added M/D/YY' description", () => {
+  const db = new Database(":memory:");
+  createTables(db);
+  db.prepare("INSERT INTO projects (project_number,name,description) VALUES ('A','A','Added 1/28/25')").run();
+  db.prepare("INSERT INTO projects (project_number,name,description) VALUES ('B','B','Added 3/13/2025')").run();
+  db.prepare("INSERT INTO projects (project_number,name,description) VALUES ('C','C','Automatically added from import')").run();
+  runMigrations(db);
+  const rows = db.prepare("SELECT project_number, created_at FROM projects ORDER BY project_number").all();
+  assert.equal(rows.find((r) => r.project_number === "A").created_at, "2025-01-28 00:00:00");
+  assert.equal(rows.find((r) => r.project_number === "B").created_at, "2025-03-13 00:00:00");
+  // No parseable date -> keeps the generic migration-1 backfill (not the epoch).
+  assert.match(rows.find((r) => r.project_number === "C").created_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+});
+
+test("parseAddedDate handles 2- and 4-digit years and rejects non-dates", () => {
+  assert.equal(parseAddedDate("Added 1/28/25"), "2025-01-28 00:00:00");
+  assert.equal(parseAddedDate("Added 12/5/2024"), "2024-12-05 00:00:00");
+  assert.equal(parseAddedDate("Automatically added from import"), null);
+  assert.equal(parseAddedDate(null), null);
+  assert.equal(parseAddedDate("Added 13/40/25"), null); // invalid month/day
+});
+
+test("LATEST_MIGRATION is 6", () => {
+  assert.equal(LATEST_MIGRATION, 6);
+});
 
 test("migrations add created_at to users, projects, items and backfill", () => {
   const db = new Database(":memory:");

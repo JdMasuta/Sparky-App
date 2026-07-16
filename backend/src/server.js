@@ -83,6 +83,9 @@ app.use("/api/pull", pullRoutes);
 app.use("/api/plc", requireAdmin, plcRoutes);
 // Email report triggers — admin only.
 app.use("/api/email", requireAdmin, emailRoutes);
+// System info + remote update — admin only. MUST be before the generic /api
+// router below, whose /:table catch-all would otherwise swallow /api/system/*.
+app.use("/api/system", requireAdmin, systemRoutes);
 app.use("/api", cableDataRoutes);
 
 // Health check endpoint — MUST be registered before the SPA catch-all below,
