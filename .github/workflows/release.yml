@@ -64,8 +64,7 @@ jobs:
           Copy-Item backend      $stage/backend      -Recurse
           Copy-Item microservice $stage/microservice -Recurse
           Copy-Item deploy       $stage/deploy       -Recurse
-          Copy-Item setup.bat    $stage/setup.bat
-          Copy-Item start.bat    $stage/start.bat
+          Copy-Item sparky.bat   $stage/sparky.bat
           Copy-Item README.md    $stage/README.md
           # Drop any local env/db that may have leaked into the tree.
           Get-ChildItem -Recurse -Path $stage -Include *.sqlite,.env -Force -ErrorAction SilentlyContinue | Remove-Item -Force

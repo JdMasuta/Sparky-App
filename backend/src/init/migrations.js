@@ -83,7 +83,64 @@ const migrations = [
       );
     },
   },
+  {
+    version: 4,
+    name: "adopt items drift columns (purchase_type, manufacturer_number, spec)",
+    up(db) {
+      // The production items table gained these columns via manual tooling.
+      // Formalize them so the Admin UI and validation layer know about them.
+      addColumnIfMissing(db, "items", "purchase_type", "TEXT");
+      addColumnIfMissing(db, "items", "manufacturer_number", "TEXT");
+      addColumnIfMissing(db, "items", "spec", "TEXT");
+    },
+  },
+  {
+    version: 5,
+    name: "normalize checkouts.timestamp to space separator",
+    up(db) {
+      if (!tableExists(db, "checkouts")) return;
+      // Historic rows use the ISO 'T' separator (old client format); newer rows
+      // use 'YYYY-MM-DD HH:MM:SS'. Normalize to the space form so lexicographic
+      // BETWEEN range queries (weekly report, stats) stay correct across both.
+      db.prepare(
+        `UPDATE checkouts SET timestamp = REPLACE(timestamp, 'T', ' ')
+           WHERE timestamp LIKE '____-__-__T%'`,
+      ).run();
+    },
+  },
+  {
+    version: 6,
+    name: "derive projects.created_at from 'Added M/D/YY' in description",
+    up(db) {
+      if (!tableExists(db, "projects")) return;
+      if (!columnNames(db, "projects").includes("created_at")) return;
+      const rows = db
+        .prepare("SELECT project_id, description FROM projects WHERE description IS NOT NULL")
+        .all();
+      const update = db.prepare(
+        "UPDATE projects SET created_at = ? WHERE project_id = ?",
+      );
+      for (const { project_id, description } of rows) {
+        const iso = parseAddedDate(description);
+        if (iso) update.run(iso, project_id);
+      }
+    },
+  },
 ];
+
+// Parse "Added M/D/YY" or "Added M/D/YYYY" from a project description into a
+// "YYYY-MM-DD 00:00:00" string. Returns null when no date is present.
+export function parseAddedDate(description) {
+  const m = /Added\s+(\d{1,2})\/(\d{1,2})\/(\d{2,4})/i.exec(String(description || ""));
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  let year = Number(m[3]);
+  if (year < 100) year += 2000;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${year}-${pad(month)}-${pad(day)} 00:00:00`;
+}
 
 /**
  * Run all pending migrations. Returns an array of human-readable warning

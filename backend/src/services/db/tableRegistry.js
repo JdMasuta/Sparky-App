@@ -20,6 +20,17 @@ export const nowLocalSql = (d = new Date()) => {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Fixed set of user roles. Legacy DB values (e.g. EMPLOYEE) still display in the
+// grid, but any WRITE must use one of these.
+export const USER_TYPES = [
+  "ASSEMBLY",
+  "FIELD SERVICE",
+  "WAREHOUSE",
+  "ENGINEER",
+  "STAFF",
+  "ADMIN",
+];
+
 export const registry = {
   users: {
     pk: "user_id",
@@ -27,7 +38,7 @@ export const registry = {
     readonly: ["user_id", "created_at"],
     columns: {
       name: { type: "string", required: true, maxLength: 100 },
-      user_type: { type: "string", required: false, maxLength: 255 },
+      user_type: { type: "enum", values: USER_TYPES, required: false },
       status: {
         type: "enum",
         values: ["ACTIVE", "INACTIVE"],
@@ -76,6 +87,9 @@ export const registry = {
       name: { type: "string", required: true, maxLength: 100 },
       description: { type: "string", required: false },
       quantity_in_stock: { type: "integer", required: false, min: 0, default: 0 },
+      purchase_type: { type: "string", required: false, maxLength: 100 },
+      manufacturer_number: { type: "string", required: false, maxLength: 100 },
+      spec: { type: "string", required: false },
     },
     unique: [
       { columns: ["sku"], ci: true, message: "An item with this SKU already exists" },
