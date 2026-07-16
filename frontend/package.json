@@ -1,7 +1,7 @@
 {
   "name": "app",
   "private": true,
-  "version": "2.1.0",
+  "version": "3.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,8 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.21.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.471.1",
     "react": "^18.3.1",
@@ -21,6 +19,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@tailwindcss/vite": "^4.3.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
@@ -29,6 +28,7 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
+    "tailwindcss": "^4.3.2",
     "vite": "^6.0.5"
   }
 }

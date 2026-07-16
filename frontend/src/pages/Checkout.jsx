@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useAlerts from "../components/shared/Alerts/useAlerts";
 import { useCheckoutForm } from "../components/entry/useCheckoutForm";
 import { useCheckoutData } from "../components/entry/useCheckoutData";
@@ -9,6 +9,8 @@ import { useFieldAutomation } from "../components/entry/useFieldAutomation";
 import EntryField from "../components/shared/EntryField.jsx";
 import PullOptionsModal from "../components/entry/PullModal.jsx";
 import SOP from "../components/entry/SOP.jsx";
+import Button from "../components/ui/Button.jsx";
+import Badge from "../components/ui/Badge.jsx";
 
 function Checkout() {
   const [showPullModal, setShowPullModal] = useState(false);
@@ -18,21 +20,20 @@ function Checkout() {
     formData,
     setFormData,
     shouldShowField,
-    handleInputChange,
     isValidSelection,
     isInvalidQuantity,
   } = useCheckoutForm(options);
-  const { handleSubmit: submitCheckout, resetForm } = useCheckoutSubmit(
+  const { handleSubmit: submitCheckout } = useCheckoutSubmit(
     formData,
     idMappings,
-    setFormData
+    setFormData,
   );
   const {
     startMonitoring,
-    stopMonitoring,
     stopAllMonitoring,
     checkConnection,
     isMonitoring,
+    mode,
   } = useRSLinxMonitor();
   const { writeToPLC, resetStepInPLC, resetPLCvalues } = usePLCTags();
   const { fieldRefs, focusNextField } = useFieldAutomation();
@@ -193,7 +194,7 @@ function Checkout() {
     activeFieldRef.current = activeField;
   }, [activeField]);
 
-  const handleAutoLogic = async (e) => {
+  const handleAutoLogic = async () => {
     if (!isMonitoring) {
       await startMonitoring(async (quantity) => {
         // If manual entry is triggered, skip or early return
@@ -288,12 +289,18 @@ function Checkout() {
 
   return (
     <div>
-      <div className="container">
-        <div className="checkout-form-container">
-          <h1 className="checkout-title">Cable Checkout</h1>
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-slate-800">
+          Cable Checkout
+        </h1>
+        {mode === "sim" && <Badge tone="amber">Simulation mode</Badge>}
+        {mode === "real" && <Badge tone="green">Live PLC</Badge>}
+      </div>
 
-          <form className="checkout-form">
-            <div className="checkout-fields-horizontal">
+      <div className="grid gap-5 lg:grid-cols-3">
+        <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
               {fields.map((field) => (
                 <EntryField
                   key={field.name}
@@ -302,7 +309,7 @@ function Checkout() {
                   onChange={handleFieldChange}
                   onFocus={() => handleFieldFocus(field.name)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && field.name == "quantity")
+                    if (e.key === "Enter" && field.name === "quantity")
                       handleManualEntry();
                   }}
                   showField={shouldShowField(field.name)}
@@ -310,40 +317,37 @@ function Checkout() {
               ))}
             </div>
 
-            <div className="checkout-submit">
-              {shouldShowField("quantity") && formData.quantity && (
-                <button
+            {shouldShowField("quantity") && formData.quantity && (
+              <div className="flex justify-end">
+                <Button
                   type="button"
-                  className="checkout-button"
                   onClick={handleManualEntry}
                   disabled={isInvalidQuantity(formData.quantity)}
                 >
                   Manual Entry
-                </button>
-              )}
-            </div>
+                </Button>
+              </div>
+            )}
           </form>
         </div>
-        <div className="sop-container-wrapper">
-          <SOP
-            activeField={activeField}
-            isManualEntryVisible={
-              shouldShowField("quantity") && formData.quantity
-            }
-            formData={formData}
-          />
-        </div>
-      </div>
-      <div>
-        <PullOptionsModal
-          isOpen={showPullModal}
-          onClose={() => {
-            stopAllMonitoring();
-            setShowPullModal(false);
-          }}
-          onManualEntry={handleManualEntry}
+
+        <SOP
+          activeField={activeField}
+          isManualEntryVisible={
+            shouldShowField("quantity") && formData.quantity
+          }
+          formData={formData}
         />
       </div>
+
+      <PullOptionsModal
+        isOpen={showPullModal}
+        onClose={() => {
+          stopAllMonitoring();
+          setShowPullModal(false);
+        }}
+        onManualEntry={handleManualEntry}
+      />
     </div>
   );
 }

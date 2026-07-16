@@ -1,47 +1,52 @@
-// Error handling middleware
+// Central Express error handler. Maps better-sqlite3 constraint errors to clean
+// HTTP status codes and always sends exactly one response.
+//
+// Note: the generic CRUD controllers pre-validate and return 409/422 directly,
+// so this is a backstop for anything that slips through (e.g. a UNIQUE
+// violation under a race, or a constraint on a path that didn't pre-check).
 const errorHandler = (err, req, res, next) => {
-  console.error(err.stack);
+  if (res.headersSent) return next(err);
 
-  // Database errors
-  if (
-    [
-      "ER_NO_SUCH_TABLE",
-      "ER_BAD_FIELD_ERROR",
-      "ER_PARSE_ERROR",
-      "ER_DUP_ENTRY",
-      "ER_NO_REFERENCED_ROW_2",
-      "ER_ROW_IS_REFERENCED_2",
-      "ER_LOCK_WAIT_TIMEOUT",
-      "ER_LOCK_DEADLOCK",
-    ].includes(err.code)
-  ) {
-    return res.status(500).json({
-      error: "Database error occurred",
-      message: `An error occurred while accessing the database: ${err.code}`,
-    });
+  const code = String(err?.code ?? "");
+  const message = err?.message ?? "Unknown error";
+
+  // better-sqlite3 surfaces SQLite constraint failures as SQLITE_CONSTRAINT_*.
+  if (code.startsWith("SQLITE_CONSTRAINT")) {
+    if (code === "SQLITE_CONSTRAINT_UNIQUE" || code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
+      return res.status(409).json({
+        error: "This value already exists",
+        message,
+      });
+    }
+    if (code === "SQLITE_CONSTRAINT_FOREIGNKEY") {
+      return res.status(409).json({
+        error: "Referenced record does not exist or is still in use",
+        message,
+      });
+    }
+    if (code === "SQLITE_CONSTRAINT_NOTNULL") {
+      return res.status(422).json({
+        error: "A required field is missing",
+        message,
+      });
+    }
+    if (code === "SQLITE_CONSTRAINT_CHECK") {
+      return res.status(422).json({
+        error: "A field has an invalid value",
+        message,
+      });
+    }
+    return res.status(409).json({ error: "Constraint violation", message });
   }
 
-  // PLC connection errors
-  if (err.message.includes("DDE")) {
-    return res.status(503).json({
-      error: "PLC communication error",
-      message: "Unable to communicate with PLC",
-    });
+  // Other SQLite errors (e.g. malformed statement) — treat as bad input/server.
+  if (code.startsWith("SQLITE_")) {
+    console.error("SQLite error:", err.stack || message);
+    return res.status(500).json({ error: "Database error", message });
   }
 
-  // Other errors
-  res.status(300).json({
-    error: "Internal Server Error 300",
-    message: err.message,
-  });
-  res.status(400).json({
-    error: "Internal Server Error 400",
-    message: err.message,
-  });
-  res.status(500).json({
-    error: "Internal Server Error 500",
-    message: err.message,
-  });
+  console.error("Unhandled error:", err.stack || message);
+  res.status(500).json({ error: "Internal Server Error", message });
 };
 
 export default errorHandler;

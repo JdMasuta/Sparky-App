@@ -2,14 +2,14 @@ async function getQuantity(quantity) {
   if (quantity === null) {
     console.warn("Quantity is null, retrieving backup quantity...");
     try {
-      const response = await fetch("/api/RSLinx/tags/Reel.RealData[10]", {
+      const response = await fetch("/api/pull/backup-quantity", {
         method: "GET",
       });
       if (!response.ok) {
         throw new Error("Failed to retrieve backup quantity from API.");
       }
-      const data = await response.json(); // Adjust this based on API response
-      return data.value || null; // Assuming API returns an object with `quantity`
+      const data = await response.json();
+      return data.value ?? null;
     } catch (error) {
       console.error("Error retrieving backup quantity:", error);
       throw error;
@@ -22,34 +22,19 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Declared outside try so the catch block can safely reference it.
+    let checkoutData = { quantity: null };
     try {
       const userId = idMappings.users.get(formData.name);
       const projectId = idMappings.projects.get(formData.project);
       const itemId = idMappings.items.get(formData.item);
 
-      const now = new Date();
-      const options = {
-        timeZone: "America/Denver",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      };
-      const timestamp = now
-        .toLocaleString("sv-SE", options)
-        .replace(" ", "T")
-        .replace(/-/g, "-")
-        .replace(/:/g, ":");
-
-      let checkoutData = {
+      checkoutData = {
         user_id: userId,
         project_id: projectId,
         item_id: itemId,
         quantity: parseFloat(formData.quantity) || null,
-        timestamp: timestamp,
+        // No client timestamp — the server records it authoritatively.
       };
 
       // Handle null quantity by fetching backup
@@ -70,7 +55,6 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
         throw new Error("Failed to submit checkout");
       }
 
-      // alert("Checkout submitted successfully!");
       resetForm(); // Reset form on successful submission
       return {
         quantity: checkoutData.quantity,

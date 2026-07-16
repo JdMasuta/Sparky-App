@@ -1,19 +1,15 @@
 {
   "name": "backend",
-  "version": "1.1.0",
+  "version": "3.0.1",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.js"
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test"
   },
   "config": {
     "portable": true
-  },
-  "pkg": {
-    "assets": [
-      "/src/database/dev.sqlite"
-    ]
   },
   "keywords": [],
   "author": "",
@@ -25,6 +21,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "helmet": "^8.3.0",
     "json2csv": "^6.0.0-alpha.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16"

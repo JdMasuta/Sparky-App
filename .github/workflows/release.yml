@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "23.6.0"
+
+jobs:
+  build-release:
+    name: Build Windows release bundle
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Derive version from tag
+        id: ver
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # Run the test suites before packaging (fail the release if red).
+      - name: Backend tests
+        working-directory: backend
+        run: npm ci && npm test
+        env:
+          NODE_ENV: test
+      - name: Microservice tests
+        working-directory: microservice
+        run: npm ci && npm test
+        env:
+          PLC_MODE: sim
+
+      # Build the frontend into backend/src/public.
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      # Production dependencies WITH native win-x64 prebuilds (better-sqlite3),
+      # so the edge device does not need a compiler.
+      - name: Install production deps (backend)
+        working-directory: backend
+        run: npm ci --omit=dev
+      - name: Install production deps (microservice)
+        working-directory: microservice
+        run: npm ci --omit=dev
+
+      - name: Stage and package bundle
+        id: pkg
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.ver.outputs.version }}"
+          $stage = "staging/sparky-app"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          # App code + built UI + prod node_modules (exclude the portable runtime;
+          # it already lives on the device and is not part of an update).
+          Copy-Item backend      $stage/backend      -Recurse
+          Copy-Item microservice $stage/microservice -Recurse
+          Copy-Item deploy       $stage/deploy       -Recurse
+          Copy-Item sparky.bat   $stage/sparky.bat
+          Copy-Item README.md    $stage/README.md
+          # Drop any local env/db that may have leaked into the tree.
+          Get-ChildItem -Recurse -Path $stage -Include *.sqlite,.env -Force -ErrorAction SilentlyContinue | Remove-Item -Force
+
+          $zip = "sparky-app-$ver.zip"
+          Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          @{ version = $ver; asset = $zip; sha256 = $sha } | ConvertTo-Json | Out-File -Encoding utf8 manifest.json
+          echo "zip=$zip"  >> $env:GITHUB_OUTPUT
+          echo "sha=$sha"  >> $env:GITHUB_OUTPUT
+          Write-Host "Packaged $zip ($sha)"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Sparky Cart ${{ steps.ver.outputs.version }}
+          files: |
+            ${{ steps.pkg.outputs.zip }}
+            manifest.json
+          body: |
+            Automated release of Sparky Cart ${{ steps.ver.outputs.version }}.
+
+            SHA-256: `${{ steps.pkg.outputs.sha }}`
+
+            Apply on the edge device with `deploy\update.bat` (checksum-verified,
+            with rollback), or download `sparky-app-${{ steps.ver.outputs.version }}.zip` manually.

@@ -1,7 +1,8 @@
 // backend/src/server.js
-import "dotenv/config";
+import "./init/env.js"; // must load env before any config module reads it
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cron from "node-cron";
 import path from "path";
@@ -18,15 +19,14 @@ import {
   securityConfig,
 } from "./services/config/server.config.js";
 import cableDataRoutes from "./services/routes/cableDataRoutes.js";
-import RSLinxRoutes from "./services/routes/RSLinxRoutes.js";
 import emailRoutes from "./services/routes/emailRoutes.js";
-import utilitiesRoutes from "./services/routes/utilitiesRoutes.js";
 import errorHandler from "./services/middleware/errorHandler.js";
 import authRoutes from "./services/routes/authRoutes.js";
-import {
-  sendCheckoutReport,
-  sendReportToEmail,
-} from "./services/controllers/emailController.js";
+import { requireAdmin } from "./services/middleware/requireAdmin.js";
+import { sendReportToEmail } from "./services/controllers/emailController.js";
+import pullRoutes from "./services/routes/pullRoutes.js";
+import plcRoutes from "./services/routes/plcRoutes.js";
+import systemRoutes from "./services/routes/systemRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,10 +57,19 @@ app.use(loggerMiddleware);
 
 app.use(limiter);
 
+// Security headers. CSP is disabled for now because the current built frontend
+// still references CDN scripts (removed in the Phase 4 facelift); once those are
+// gone a strict same-origin CSP can be enabled here.
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// CORS restricted to an allowlist (was origin:"*" with credentials, which is
+// invalid and unsafe). In production the SPA is same-origin; dev uses :5173.
 app.use(
   cors({
-    origin: "*",
+    origin: serverConfig.corsOrigin,
     credentials: true,
+    methods: securityConfig.cors.methods,
+    allowedHeaders: securityConfig.cors.allowedHeaders,
   }),
 );
 app.use(express.json());
@@ -68,15 +77,32 @@ app.use(express.urlencoded({ extended: true }));
 
 // API Setup
 app.use("/api/auth", authRoutes);
-app.use("/api/rslinx", RSLinxRoutes);
-app.use("/api/email", emailRoutes);
-app.use("/api/utilities", utilitiesRoutes);
+// Intent-based Checkout endpoints (operator-facing, open, DB-validated).
+app.use("/api/pull", pullRoutes);
+// Raw PLC diagnostics — admin only.
+app.use("/api/plc", requireAdmin, plcRoutes);
+// Email report triggers — admin only.
+app.use("/api/email", requireAdmin, emailRoutes);
+// System info + remote update — admin only. MUST be before the generic /api
+// router below, whose /:table catch-all would otherwise swallow /api/system/*.
+app.use("/api/system", requireAdmin, systemRoutes);
 app.use("/api", cableDataRoutes);
+
+// Health check endpoint — MUST be registered before the SPA catch-all below,
+// otherwise `app.get("*")` shadows it and serves index.html. The edge updater
+// and CI probe this endpoint.
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    environment: serverConfig.environment,
+    databasePath: serverConfig.paths.database,
+  });
+});
 
 // Serve static files from the public directory
 app.use(express.static(path.join(__dirname, "public")));
 
-// Handle React routing by serving index.html for all unmatched routes
+// Handle React routing by serving index.html for all unmatched non-API routes
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
@@ -100,15 +126,6 @@ if (serverConfig.environment === "development") {
     next();
   });
 }
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "healthy",
-    environment: serverConfig.environment,
-    databasePath: serverConfig.paths.database,
-  });
-});
 
 // Utility function to format timestamp
 const formatTimestamp = (date) => {

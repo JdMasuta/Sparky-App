@@ -1,5 +1,12 @@
 // src/controllers/cableDataController.js
 import { getDatabase } from "../../init/db.init.js";
+import {
+  isKnownTable,
+  getTable,
+  getPrimaryKey,
+  validateInsert,
+  validateUpdate,
+} from "../db/tableRegistry.js";
 
 // Method: Get the latest n checkouts
 export const getLatestCheckouts = (req, res) => {
@@ -115,17 +122,19 @@ export const getTableData = (req, res) => {
 export const getActiveTableData = (req, res) => {
   try {
     const db = getDatabase();
+    // COALESCE keeps this safe even if a DB somehow lacks the status column
+    // value; the migration guarantees the column exists with default 'ACTIVE'.
     const users = db
       .prepare(
-        "SELECT user_id, name FROM users WHERE COALESCE(status, 'Active') = 'ACTIVE'" // Assuming 'ACTIVE' is the default status if not specified
+        "SELECT user_id, name FROM users WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' ORDER BY name"
       )
       .all();
     const projects = db
       .prepare(
-        "SELECT project_id, project_number FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE';" // Assuming 'ACTIVE' is the default status if not specified
+        "SELECT project_id, project_number FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' ORDER BY project_number"
       )
       .all();
-    const items = db.prepare("SELECT item_id, sku FROM items").all();
+    const items = db.prepare("SELECT item_id, sku FROM items ORDER BY sku").all();
 
     res.status(200).json({
       users,
@@ -352,49 +361,47 @@ export const getCheckoutsAfterTimestamp = (req, res) => {
 };
 
 // General CRUD Operations for All Tables
+//
+// Table and column identifiers are always validated against tableRegistry
+// before being placed in SQL (only registry-known tables/columns can reach a
+// query), and write payloads are validated for required fields, types, ranges,
+// uniqueness, and foreign keys. This closes the previous identifier-injection
+// hole and rejects duplicates/bad references with clean 4xx responses.
 
 // Get all rows from a table
 export const getAllData = (req, res) => {
   const { table } = req.params;
 
+  if (!isKnownTable(table)) {
+    return res.status(404).json({ error: `Unknown table '${table}'` });
+  }
+
   try {
     const db = getDatabase();
-    const rows = db.prepare(`SELECT * FROM ${table}`).all();
+    const pk = getPrimaryKey(table);
+    const rows = db.prepare(`SELECT * FROM ${table} ORDER BY ${pk}`).all();
     res.status(200).json(rows);
   } catch (error) {
     console.error(`Error fetching data from table ${table}:`, error);
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
-// 1) Create a lookup/dictionary for primary keys
-const tableKeyMap = {
-  users: "user_id",
-  items: "item_id",
-  projects: "project_id",
-  checkouts: "checkout_id",
-  report_recipients: "id",
-  weekly_report_status: "id",
-};
-
-// Utility function:
-function getPrimaryKeyForTable(table) {
-  // If the table doesn't exist in our map, you can default to "id"
-  return tableKeyMap[table] || "id";
-}
 
 // Get a single row by ID
 export const getById = (req, res) => {
   const { table, id } = req.params;
+
+  if (!isKnownTable(table)) {
+    return res.status(404).json({ error: `Unknown table '${table}'` });
+  }
+
   try {
     const db = getDatabase();
-    const primaryKey = getPrimaryKeyForTable(table);
-    const row = db
-      .prepare(`SELECT * FROM ${table} WHERE ${primaryKey} = ?`)
-      .get(id);
+    const pk = getPrimaryKey(table);
+    const row = db.prepare(`SELECT * FROM ${table} WHERE ${pk} = ?`).get(id);
 
     if (!row) {
-      return res.status(404).send("Record not found");
+      return res.status(404).json({ error: "Record not found" });
     }
     res.status(200).json(row);
   } catch (error) {
@@ -402,54 +409,73 @@ export const getById = (req, res) => {
       `Error fetching record from table ${table} with ID ${id}:`,
       error
     );
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
 // Create a new entry
 export const createEntry = (req, res) => {
   const { table } = req.params;
-  const data = req.body;
+
+  if (!isKnownTable(table)) {
+    return res.status(404).json({ error: `Unknown table '${table}'` });
+  }
 
   try {
     const db = getDatabase();
-    const keys = Object.keys(data).join(", ");
-    const placeholders = Object.keys(data)
-      .map(() => "?")
-      .join(", ");
-    const values = Object.values(data);
+    const result = validateInsert(db, table, req.body ?? {});
+    if (result.status) {
+      return res
+        .status(result.status)
+        .json({ error: result.message, field: result.field });
+    }
 
-    const result = db
-      .prepare(`INSERT INTO ${table} (${keys}) VALUES (${placeholders})`)
-      .run(values);
+    const { data } = result;
+    const cols = Object.keys(data);
+    const placeholders = cols.map(() => "?").join(", ");
+    const values = cols.map((c) => data[c]);
 
-    res.status(201).json({ id: result.lastInsertRowid });
+    const info = db
+      .prepare(`INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`)
+      .run(...values);
+
+    res.status(201).json({ id: info.lastInsertRowid });
   } catch (error) {
     console.error(`Error creating entry in table ${table}:`, error);
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
 // Update an entry by ID
 export const updateEntry = (req, res) => {
   const { table, id } = req.params;
-  const data = req.body;
-  console.log("data", data);
+
+  if (!isKnownTable(table)) {
+    return res.status(404).json({ error: `Unknown table '${table}'` });
+  }
 
   try {
-    const updates = Object.keys(data)
-      .map((key) => `${key} = ?`)
-      .join(", ");
-    const values = [...Object.values(data), id];
-
     const db = getDatabase();
-    const primaryKey = getPrimaryKeyForTable(table);
-    const result = db
-      .prepare(`UPDATE ${table} SET ${updates} WHERE ${primaryKey} = ?`)
-      .run(values);
+    const result = validateUpdate(db, table, id, req.body ?? {});
+    if (result.status) {
+      return res
+        .status(result.status)
+        .json({ error: result.message, field: result.field });
+    }
 
-    if (result.changes === 0) {
-      return res.status(404).send("Record not found or no changes made");
+    const { data } = result;
+    const pk = getPrimaryKey(table);
+    const assignments = Object.keys(data)
+      .map((c) => `${c} = ?`)
+      .join(", ");
+    const values = [...Object.keys(data).map((c) => data[c]), id];
+
+    const info = db
+      .prepare(`UPDATE ${table} SET ${assignments} WHERE ${pk} = ?`)
+      .run(...values);
+
+    if (info.changes === 0) {
+      return res.status(404).json({ error: "Record not found" });
     }
 
     res.status(200).json({ message: "Update successful" });
@@ -458,7 +484,7 @@ export const updateEntry = (req, res) => {
       `Error updating entry in table ${table} with ID ${id}:`,
       error
     );
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -466,23 +492,34 @@ export const updateEntry = (req, res) => {
 export const deleteEntry = (req, res) => {
   const { table, id } = req.params;
 
+  if (!isKnownTable(table)) {
+    return res.status(404).json({ error: `Unknown table '${table}'` });
+  }
+  if (!getTable(table).writable) {
+    return res.status(403).json({ error: `Table '${table}' is read-only` });
+  }
+
   try {
     const db = getDatabase();
-    const primaryKey = getPrimaryKeyForTable(table);
-    const result = db
-      .prepare(`DELETE FROM ${table} WHERE ${primaryKey} = ?`)
-      .run(id);
+    const pk = getPrimaryKey(table);
+    const info = db.prepare(`DELETE FROM ${table} WHERE ${pk} = ?`).run(id);
 
-    if (result.changes === 0) {
-      return res.status(404).send("Record not found");
+    if (info.changes === 0) {
+      return res.status(404).json({ error: "Record not found" });
     }
 
     res.status(200).json({ message: "Delete successful" });
   } catch (error) {
+    if (String(error.code).startsWith("SQLITE_CONSTRAINT_FOREIGNKEY")) {
+      return res.status(409).json({
+        error:
+          "This record is referenced by existing checkouts and cannot be deleted",
+      });
+    }
     console.error(
       `Error deleting entry from table ${table} with ID ${id}:`,
       error
     );
-    res.status(500).send("Internal Server Error");
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };

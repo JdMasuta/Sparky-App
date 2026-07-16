@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { serverConfig } from "../services/config/server.config.js";
+import { runMigrations } from "./migrations.js";
 
 let config;
 try {
@@ -45,7 +46,7 @@ const tableExists = (db, tableName) => {
   }
 };
 
-const createTables = (db) => {
+export const createTables = (db) => {
   try {
     const missingTables = REQUIRED_TABLES.filter(
       (table) => !tableExists(db, table)
@@ -167,6 +168,69 @@ const createTables = (db) => {
   }
 };
 
+// One-time relocation: if the DB lives at the legacy in-tree path and not yet
+// at the (production) data dir, copy it over so we don't start from an empty DB
+// after moving SPARKY_DATA_DIR outside the release tree. Runs only when the two
+// paths differ (i.e. SPARKY_DATA_DIR is set to a non-legacy location).
+const relocateLegacyDatabaseIfNeeded = () => {
+  const legacyPath = path.join(
+    serverConfig.paths.legacyDatabase,
+    path.basename(config.filename)
+  );
+  if (
+    legacyPath !== config.filename &&
+    !fs.existsSync(config.filename) &&
+    fs.existsSync(legacyPath)
+  ) {
+    fs.copyFileSync(legacyPath, config.filename);
+    console.log(
+      `Relocated database from legacy path ${legacyPath} to ${config.filename}`
+    );
+  }
+
+  // First production boot: the legacy stack ran as NODE_ENV=development, so the
+  // live data lives in dev.sqlite. If we're now starting in production and no
+  // prod.sqlite exists yet but a dev.sqlite is present in the same data dir,
+  // adopt (copy) it once so we don't start from an empty DB.
+  if (
+    path.basename(config.filename) === "prod.sqlite" &&
+    !fs.existsSync(config.filename)
+  ) {
+    const devPath = path.join(path.dirname(config.filename), "dev.sqlite");
+    if (fs.existsSync(devPath)) {
+      fs.copyFileSync(devPath, config.filename);
+      console.warn(
+        `NOTICE: no prod.sqlite found; adopted existing dev.sqlite as ${config.filename}. ` +
+          `Remove/rename dev.sqlite once you've confirmed the production DB is correct.`
+      );
+    }
+  }
+};
+
+// Live data-health checks, re-evaluated on every boot. Returns warning strings
+// for conditions an admin should resolve (surfaced via /api/system/info).
+const checkDataHealth = (db) => {
+  const warnings = [];
+  try {
+    const dups = db
+      .prepare(
+        `SELECT name, COUNT(*) AS c FROM users
+           GROUP BY name COLLATE NOCASE HAVING c > 1`
+      )
+      .all();
+    if (dups.length > 0) {
+      warnings.push(
+        `${dups.length} duplicate user name(s): ` +
+          `${dups.map((d) => `"${d.name}"`).join(", ")}. ` +
+          `Resolve them in Tables → Users so names stay unique.`
+      );
+    }
+  } catch {
+    /* users table may be absent in unusual states */
+  }
+  return warnings;
+};
+
 export const initializeDatabase = () => {
   try {
     const dbDir = path.dirname(config.filename);
@@ -181,6 +245,8 @@ export const initializeDatabase = () => {
       }
     }
 
+    relocateLegacyDatabaseIfNeeded();
+
     db = new Database(config.filename, {
       verbose: config.verbose ? console.log : null,
       timeout: config.timeout,
@@ -194,6 +260,18 @@ export const initializeDatabase = () => {
     }
 
     createTables(db);
+    const applied = runMigrations(db);
+    // Live data-health checks run on every boot (not just when a migration
+    // fires), so conditions like duplicate user names keep surfacing in the
+    // Admin Dashboard until an admin resolves them. Collapse any duplicate
+    // "duplicate…"-type warnings to a single entry.
+    const seen = new Set();
+    migrationWarnings = [...applied, ...checkDataHealth(db)].filter((w) => {
+      const key = /duplicate/i.test(w) ? "dup" : w;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     return db;
   } catch (error) {
     console.error("Database initialization failed:", error.message);
@@ -221,6 +299,11 @@ export const getDatabase = () => {
   }
   return db;
 };
+
+// Warnings from the last migration run (e.g. skipped constraints on drifted
+// data), surfaced by the Admin Dashboard via /api/system/info.
+let migrationWarnings = [];
+export const getMigrationWarnings = () => migrationWarnings;
 
 export const closeDatabase = () => {
   if (db) {
