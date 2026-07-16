@@ -14,7 +14,7 @@ const FIELDS = {
     exists: (db, v) =>
       db
         .prepare(
-          "SELECT 1 FROM users WHERE name = ? COLLATE NOCASE AND COALESCE(status,'ACTIVE') = 'ACTIVE'"
+          "SELECT 1 FROM users WHERE name = ? COLLATE NOCASE AND COALESCE(status,'ACTIVE') = 'ACTIVE'",
         )
         .get(v),
     missing: "Unknown or inactive user",
@@ -25,7 +25,7 @@ const FIELDS = {
     exists: (db, v) =>
       db
         .prepare(
-          "SELECT 1 FROM projects WHERE project_number = ? COLLATE NOCASE AND COALESCE(status,'ACTIVE') = 'ACTIVE'"
+          "SELECT 1 FROM projects WHERE project_number = ? COLLATE NOCASE AND COALESCE(status,'ACTIVE') = 'ACTIVE'",
         )
         .get(v),
     missing: "Unknown or inactive project",
@@ -33,7 +33,8 @@ const FIELDS = {
   item: {
     tag: "itemNumber",
     step: 4,
-    exists: (db, v) => db.prepare("SELECT 1 FROM items WHERE sku = ? COLLATE NOCASE").get(v),
+    exists: (db, v) =>
+      db.prepare("SELECT 1 FROM items WHERE sku = ? COLLATE NOCASE").get(v),
     missing: "Unknown item SKU",
   },
 };
@@ -73,7 +74,12 @@ export const setPullField = async (req, res) => {
 // POST /api/pull/reset  -> resets the handshake to idle (step 1)
 export const resetPull = async (req, res) => {
   try {
-    await plcBridge.write({ stepNumber: 1 });
+    await plcBridge.write({
+      stepNumber: 1,
+      userName: "",
+      moNumber: "",
+      itemNumber: "",
+    });
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error("resetPull error:", err.message);
@@ -100,11 +106,13 @@ const monitoringSessions = new Map(); // sessionId -> { aborted: boolean }
 // GET /api/pull/monitor/:sessionId?threshold=&timeout=&pollInterval=
 export const monitorPull = async (req, res) => {
   const { sessionId } = req.params;
-  if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+  if (!sessionId)
+    return res.status(400).json({ error: "sessionId is required" });
 
   const pollInterval = clampInt(req.query.pollInterval, 500, 100, 5000);
   const timeout = clampInt(req.query.timeout, 600000, 1000, 3600000);
-  const threshold = Number(req.query.quantityThreshold ?? req.query.threshold ?? 0) || 0;
+  const threshold =
+    Number(req.query.quantityThreshold ?? req.query.threshold ?? 0) || 0;
 
   const session = { aborted: false };
   monitoringSessions.set(sessionId, session);
@@ -152,14 +160,21 @@ export const monitorPull = async (req, res) => {
   } catch (err) {
     monitoringSessions.delete(sessionId);
     console.error("monitorPull error:", err.message);
-    res.status(502).json({ success: false, error: "PLC monitor failed", message: err.message });
+    res
+      .status(502)
+      .json({
+        success: false,
+        error: "PLC monitor failed",
+        message: err.message,
+      });
   }
 };
 
 // POST /api/pull/monitor/stop  { sessionId }
 export const stopMonitor = (req, res) => {
   const { sessionId } = req.body ?? {};
-  if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+  if (!sessionId)
+    return res.status(400).json({ error: "sessionId is required" });
   const session = monitoringSessions.get(sessionId);
   if (session) session.aborted = true;
   monitoringSessions.delete(sessionId);

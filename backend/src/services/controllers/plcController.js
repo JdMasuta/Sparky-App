@@ -20,7 +20,10 @@ export const listTags = async (req, res) => {
 // POST /api/plc/read  { tags: ["alias", ...] }
 export const readTags = async (req, res) => {
   const tags = req.body?.tags;
-  if (!Array.isArray(tags) || tags.length === 0) {
+  if (!Array.isArray(tags)) {
+    return res.status(400).json({ error: "tags must be an array" });
+  }
+  if (tags.length === 0) {
     return res.status(400).json({ error: "tags must be a non-empty array" });
   }
   try {
