@@ -93,8 +93,21 @@ export default function EntryFormModal({ isOpen, table, mode, initial, refData, 
             onChange: (e) => set(f.name, e.target.value),
           };
           if (f.type === "textarea") return <TextArea key={f.name} {...common} />;
-          if (f.type === "select")
-            return <Select key={f.name} {...common} options={f.options} />;
+          if (f.type === "select") {
+            // Include a legacy/out-of-set current value so it stays visible when
+            // editing (e.g. a user whose user_type predates the fixed enum).
+            const opts = [...f.options];
+            const cur = values[f.name];
+            if (cur && !opts.includes(cur)) opts.unshift(cur);
+            return (
+              <Select
+                key={f.name}
+                {...common}
+                options={opts}
+                placeholder={f.required ? undefined : "—"}
+              />
+            );
+          }
           if (f.type === "fk") {
             const options = (refData[f.ref] || []).map((row) => ({
               value: row[schemas[f.ref].pk],

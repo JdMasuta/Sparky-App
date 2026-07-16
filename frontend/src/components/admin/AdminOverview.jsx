@@ -1,6 +1,6 @@
 /* global __APP_VERSION__ */
 import { useEffect, useState } from "react";
-import { Users, FolderKanban, Package, ClipboardList, Cpu } from "lucide-react";
+import { Users, FolderKanban, Package, ClipboardList, Cpu, AlertTriangle } from "lucide-react";
 import StatCard from "../ui/StatCard.jsx";
 import Card from "../ui/Card.jsx";
 import Badge from "../ui/Badge.jsx";
@@ -17,13 +17,14 @@ export default function AdminOverview() {
     let alive = true;
     (async () => {
       try {
-        const [users, projects, items, checkouts, plc, reports] = await Promise.all([
+        const [users, projects, items, checkouts, plc, reports, info] = await Promise.all([
           api.get("/users"),
           api.get("/projects"),
           api.get("/items"),
           api.get("/checkouts"),
           api.get("/pull/status").catch(() => ({ connected: false, mode: "unknown" })),
           api.get("/weekly_report_status").catch(() => []),
+          api.get("/system/info").catch(() => ({ warnings: [] })),
         ]);
         if (!alive) return;
         const lastReport = reports[reports.length - 1];
@@ -37,6 +38,7 @@ export default function AdminOverview() {
           },
           plc,
           lastReport,
+          warnings: info.warnings || [],
         });
       } catch (err) {
         if (alive) setState({ loading: false, error: err.message });
@@ -58,10 +60,23 @@ export default function AdminOverview() {
     return <p className="text-sm text-red-600">Failed to load overview: {state.error}</p>;
   }
 
-  const { counts, plc, lastReport } = state;
+  const { counts, plc, lastReport, warnings } = state;
 
   return (
     <div className="space-y-5">
+      {warnings && warnings.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <AlertTriangle className="h-4 w-4" /> Data health
+          </div>
+          <ul className="mt-1 list-inside list-disc text-sm text-amber-700">
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard title="Users" value={counts.users} icon={Users} />
         <StatCard title="Projects" value={counts.projects} icon={FolderKanban} tone="slate" />

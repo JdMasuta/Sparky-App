@@ -8,7 +8,13 @@ import ConfirmDialog from "../ui/ConfirmDialog.jsx";
 import EntryFormModal from "./EntryFormModal.jsx";
 import useAlerts from "../shared/Alerts/useAlerts.jsx";
 import { api } from "../../lib/api.js";
-import { TABLES, schemas, columnLabel, formatDateTime } from "../../lib/tableSchemas.js";
+import {
+  TABLES,
+  schemas,
+  columnLabel,
+  formatDateTime,
+  FK_DISPLAY,
+} from "../../lib/tableSchemas.js";
 
 const TIME_COLUMNS = new Set(["created_at", "timestamp"]);
 
@@ -38,22 +44,51 @@ export default function AdminTables() {
   }, [loadAll]);
 
   const schema = schemas[table];
-  const rows = data[table] || [];
+  // Newest first: primary keys are AUTOINCREMENT, so descending PK = insertion order.
+  const rows = [...(data[table] || [])].sort((a, b) => b[schema.pk] - a[schema.pk]);
+
+  // Lookup maps (id -> row) for resolving foreign keys to display names.
+  const refIndex = (ref) => {
+    const pk = schemas[ref].pk;
+    const map = new Map();
+    for (const row of data[ref] || []) map.set(row[pk], row);
+    return map;
+  };
+  const fkName = (colKey, id) => {
+    const spec = FK_DISPLAY[colKey];
+    if (!spec) return id;
+    const row = refIndex(spec.ref).get(id);
+    return row ? spec.field(row) : id;
+  };
 
   const columns = [
-    ...schema.columns.map((key) => ({
-      key,
-      header: columnLabel(key),
-      render: TIME_COLUMNS.has(key)
-        ? (row) => <span className="text-slate-500">{formatDateTime(row[key])}</span>
-        : key === "status"
-        ? (row) => (
-            <Badge tone={row.status === "INACTIVE" ? "neutral" : "green"}>
-              {row.status || "ACTIVE"}
-            </Badge>
-          )
-        : undefined,
-    })),
+    ...schema.columns.map((key) => {
+      const fk = FK_DISPLAY[key];
+      if (fk) {
+        // Show the referenced entity's name; keep the id as a tooltip; filter by name.
+        return {
+          key,
+          header: fk.label,
+          filterValue: (row) => String(fkName(key, row[key]) ?? ""),
+          render: (row) => (
+            <span title={`id ${row[key]}`}>{fkName(key, row[key]) ?? "—"}</span>
+          ),
+        };
+      }
+      return {
+        key,
+        header: columnLabel(key),
+        render: TIME_COLUMNS.has(key)
+          ? (row) => <span className="text-slate-500">{formatDateTime(row[key])}</span>
+          : key === "status"
+          ? (row) => (
+              <Badge tone={row.status === "INACTIVE" ? "neutral" : "green"}>
+                {row.status || "ACTIVE"}
+              </Badge>
+            )
+          : undefined,
+      };
+    }),
     {
       key: "_actions",
       header: "",
@@ -76,6 +111,7 @@ export default function AdminTables() {
         </div>
       ),
       className: "text-right",
+      filterable: false,
     },
   ];
 
@@ -121,6 +157,7 @@ export default function AdminTables() {
           rows={rows}
           rowKey={(row) => row[schema.pk]}
           loading={loading}
+          filterable
           empty={`No ${schema.label.toLowerCase()} yet. Use "Add" to create one.`}
         />
       </Card>

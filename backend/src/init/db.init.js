@@ -207,6 +207,30 @@ const relocateLegacyDatabaseIfNeeded = () => {
   }
 };
 
+// Live data-health checks, re-evaluated on every boot. Returns warning strings
+// for conditions an admin should resolve (surfaced via /api/system/info).
+const checkDataHealth = (db) => {
+  const warnings = [];
+  try {
+    const dups = db
+      .prepare(
+        `SELECT name, COUNT(*) AS c FROM users
+           GROUP BY name COLLATE NOCASE HAVING c > 1`
+      )
+      .all();
+    if (dups.length > 0) {
+      warnings.push(
+        `${dups.length} duplicate user name(s): ` +
+          `${dups.map((d) => `"${d.name}"`).join(", ")}. ` +
+          `Resolve them in Tables → Users so names stay unique.`
+      );
+    }
+  } catch {
+    /* users table may be absent in unusual states */
+  }
+  return warnings;
+};
+
 export const initializeDatabase = () => {
   try {
     const dbDir = path.dirname(config.filename);
@@ -236,7 +260,18 @@ export const initializeDatabase = () => {
     }
 
     createTables(db);
-    migrationWarnings = runMigrations(db);
+    const applied = runMigrations(db);
+    // Live data-health checks run on every boot (not just when a migration
+    // fires), so conditions like duplicate user names keep surfacing in the
+    // Admin Dashboard until an admin resolves them. Collapse any duplicate
+    // "duplicate…"-type warnings to a single entry.
+    const seen = new Set();
+    migrationWarnings = [...applied, ...checkDataHealth(db)].filter((w) => {
+      const key = /duplicate/i.test(w) ? "dup" : w;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     return db;
   } catch (error) {
     console.error("Database initialization failed:", error.message);
