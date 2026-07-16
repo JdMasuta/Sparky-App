@@ -26,7 +26,7 @@ function Checkout() {
   const { handleSubmit: submitCheckout } = useCheckoutSubmit(
     formData,
     idMappings,
-    setFormData
+    setFormData,
   );
   const {
     startMonitoring,
@@ -290,7 +290,9 @@ function Checkout() {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-800">Cable Checkout</h1>
+        <h1 className="text-2xl font-semibold text-slate-800">
+          Cable Checkout
+        </h1>
         {mode === "sim" && <Badge tone="amber">Simulation mode</Badge>}
         {mode === "real" && <Badge tone="green">Live PLC</Badge>}
       </div>
@@ -331,7 +333,9 @@ function Checkout() {
 
         <SOP
           activeField={activeField}
-          isManualEntryVisible={shouldShowField("quantity") && formData.quantity}
+          isManualEntryVisible={
+            shouldShowField("quantity") && formData.quantity
+          }
           formData={formData}
         />
       </div>

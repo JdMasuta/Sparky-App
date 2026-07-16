@@ -29,8 +29,10 @@ export default function DataTable({
     return (rows || []).filter((row) =>
       active.every(([key, v]) => {
         const col = columns.find((c) => c.key === key);
-        return col && displayValue(col, row).toLowerCase().includes(v.toLowerCase());
-      })
+        return (
+          col && displayValue(col, row).toLowerCase().includes(v.toLowerCase())
+        );
+      }),
     );
   }, [rows, filters, columns]);
 
@@ -69,7 +71,10 @@ export default function DataTable({
                       <input
                         value={filters[col.key] || ""}
                         onChange={(e) =>
-                          setFilters((f) => ({ ...f, [col.key]: e.target.value }))
+                          setFilters((f) => ({
+                            ...f,
+                            [col.key]: e.target.value,
+                          }))
                         }
                         placeholder="Filter…"
                         className="w-full rounded-md border-0 py-1 pl-7 pr-2 text-xs font-normal normal-case text-slate-700 ring-1 ring-inset ring-slate-200 focus:ring-brand-400"
@@ -84,7 +89,10 @@ export default function DataTable({
         <tbody className="divide-y divide-slate-100">
           {filtered.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="py-6 text-center text-sm text-slate-400">
+              <td
+                colSpan={columns.length}
+                className="py-6 text-center text-sm text-slate-400"
+              >
                 No rows match the current filters.
               </td>
             </tr>
