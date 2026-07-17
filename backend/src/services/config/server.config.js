@@ -67,11 +67,25 @@ export const securityConfig = {
   csrfHeader: "x-requested-by",
   csrfValue: "sparky",
 
+  // Two limiters, both scoped to /api in server.js so page loads, static
+  // assets, and /health never consume request budget. JSON messages so the
+  // frontend's error normalization (lib/api.js) surfaces them cleanly.
   rateLimiting: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    api: {
+      windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+      limit: Number(process.env.RATE_LIMIT_API || 600), // per IP per window
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      message: { error: "Too many requests, please slow down." },
+    },
+    auth: {
+      windowMs: 15 * 60 * 1000,
+      limit: Number(process.env.RATE_LIMIT_AUTH || 10), // failed logins per IP
+      standardHeaders: "draft-7",
+      legacyHeaders: false,
+      skipSuccessfulRequests: true, // only failed attempts count
+      message: { error: "Too many login attempts. Try again later." },
+    },
   },
   cors: {
     methods: ["GET", "POST", "PUT", "DELETE"],
