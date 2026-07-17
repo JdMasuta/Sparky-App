@@ -10,7 +10,7 @@
 //   node deploy/updater.mjs --check     # report only, make no changes
 //   node deploy/updater.mjs             # apply an update if one is available
 import { createHash } from "crypto";
-import { createReadStream, promises as fs } from "fs";
+import { appendFileSync, createReadStream, promises as fs } from "fs";
 import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
@@ -27,6 +27,19 @@ const INSTALL_ROOT = process.env.SPARKY_INSTALL_ROOT
 // data dir are deliberately NOT touched).
 const REPLACE_DIRS = ["backend", "microservice", "deploy"];
 const REPLACE_FILES = ["sparky.bat", "README.md"];
+
+// The detached stage-2 updater has no console, so this file is the only record
+// of an update run (truncated at the start of each run).
+const LOG_FILE = path.join(os.tmpdir(), "sparky-updater.log");
+function log(message) {
+  const line = `[${new Date().toISOString()}] ${message}`;
+  console.log(line);
+  try {
+    appendFileSync(LOG_FILE, line + "\n");
+  } catch {
+    /* logging must never break an update */
+  }
+}
 
 // ---- pure helpers (unit-tested) -------------------------------------------
 export function parseVersion(v) {
@@ -102,6 +115,21 @@ function run(cmd, args, opts = {}) {
   });
 }
 
+// A force-killed service can keep file handles alive for a moment after
+// taskkill returns, so directory renames right after a stop can hit transient
+// EBUSY/EPERM — retry briefly before giving up.
+async function renameWithRetry(src, dest, attempts = 6, delayMs = 1500) {
+  for (let i = 1; ; i++) {
+    try {
+      return await fs.rename(src, dest);
+    } catch (err) {
+      if (i >= attempts || !["EBUSY", "EPERM", "EACCES"].includes(err.code)) throw err;
+      log(`Rename busy (${path.basename(src)}), retrying (${i}/${attempts - 1})…`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 async function healthCheck(port, timeoutMs = 30000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -116,37 +144,76 @@ async function healthCheck(port, timeoutMs = 30000) {
   return false;
 }
 
+// Inverse of healthCheck: resolves true once the backend port stops answering,
+// i.e. services are actually down. We must confirm this before renaming the
+// install — otherwise a service still holding the port (and, via its window,
+// the tree) fails the swap mid-backup.
+async function waitForPortFree(port, timeoutMs = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(2000) });
+      // Still answering — not down yet.
+    } catch {
+      return true; // connection refused / timeout => port free
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
+}
+
 // ---- main flow ------------------------------------------------------------
 async function main() {
   const checkOnly = process.argv.includes("--check");
+
+  // Hand off to a detached, console-less copy of ourselves before doing any
+  // work (--check stays inline so callers see its output). `sparky stop`
+  // tree-kills the "Sparky Backend" window's PID descendants (taskkill /T),
+  // and a dashboard-triggered update makes this process one of them — running
+  // stop directly from here would kill the updater itself. Stage 1 exits
+  // immediately, so stage 2 is left with a dead parent (unreachable by
+  // taskkill /T) and no console (unmatchable by any WINDOWTITLE filter).
+  if (!checkOnly && !process.env.SPARKY_UPDATER_STAGE2) {
+    spawn(process.execPath, [process.argv[1]], {
+      detached: true,
+      stdio: "ignore",
+      env: { ...process.env, SPARKY_UPDATER_STAGE2: "1" },
+    }).unref();
+    console.log(`Updater handed off to background (log: ${LOG_FILE}).`);
+    return;
+  }
+  if (!checkOnly) {
+    await fs.writeFile(LOG_FILE, "").catch(() => {});
+  }
+
   const cfg = await loadConfig();
   const current = await currentVersion();
-  console.log(`Current version: ${current} (repo ${cfg.repo})`);
+  log(`Current version: ${current} (repo ${cfg.repo})`);
 
   const release = await fetchLatestRelease(cfg.repo);
   const remote = String(release.tag_name || "").replace(/^v/, "");
-  console.log(`Latest release: ${remote}`);
+  log(`Latest release: ${remote}`);
 
   if (!isNewer(remote, current)) {
-    console.log("Already up to date.");
+    log("Already up to date.");
     return;
   }
   const { zip, manifest } = pickAssets(release);
   if (!zip || !manifest) throw new Error("Release is missing the zip or manifest.json asset");
 
   if (checkOnly) {
-    console.log(`Update available: ${current} -> ${remote}`);
+    log(`Update available: ${current} -> ${remote}`);
     return;
   }
 
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "sparky-upd-"));
   const zipPath = path.join(tmp, zip.name);
-  console.log("Downloading manifest and bundle…");
+  log("Downloading manifest and bundle…");
   await download(manifest.browser_download_url, path.join(tmp, "manifest.json"));
   const man = JSON.parse(await fs.readFile(path.join(tmp, "manifest.json"), "utf8"));
   await download(zip.browser_download_url, zipPath);
 
-  console.log("Verifying checksum…");
+  log("Verifying checksum…");
   const actual = await sha256File(zipPath);
   if (man.sha256 && actual.toLowerCase() !== String(man.sha256).toLowerCase()) {
     throw new Error(`Checksum mismatch (expected ${man.sha256}, got ${actual})`);
@@ -155,38 +222,51 @@ async function main() {
   // Extract with Windows' built-in tar (bsdtar handles .zip on Win10+).
   const extractDir = path.join(tmp, "extracted");
   await fs.mkdir(extractDir, { recursive: true });
-  console.log("Extracting…");
+  log("Extracting…");
   await run("tar", ["-xf", zipPath, "-C", extractDir]);
 
   // Make sure our own cwd is not inside a directory we're about to rename.
   process.chdir(os.tmpdir());
 
   const sparky = path.join(INSTALL_ROOT, "sparky.bat");
-  // Stop services before swapping files.
-  console.log("Stopping services…");
+  // Stop services before swapping files. NOTE: stop tree-kills by PID
+  // ancestry (taskkill /T in sparky.bat :stop) — this is safe here only
+  // because the stage-1 hand-off in main() made this process parentless and
+  // consoleless before we got this far.
+  log("Stopping services…");
   await run(sparky, ["stop"], { shell: true }).catch(() => {});
 
-  // Backup current dirs + root files, then replace.
+  // Confirm the backend is actually down before touching any files. If a
+  // service is still up it holds the port (and its dir), so proceeding would
+  // fail the swap mid-backup — abort now instead, while nothing has moved.
+  if (!(await waitForPortFree(cfg.port))) {
+    throw new Error(`Services did not stop (port ${cfg.port} still in use); aborting before backup`);
+  }
+
+  // Backup current dirs + root files, then replace. The backup renames run
+  // INSIDE the try so a mid-backup failure also restores and restarts.
   const backup = path.join(INSTALL_ROOT, "releases", `backup-${current}-${Date.now()}`);
   await fs.mkdir(backup, { recursive: true });
-  console.log(`Backing up current install to ${backup}…`);
-  for (const dir of REPLACE_DIRS) {
-    const src = path.join(INSTALL_ROOT, dir);
-    if (await exists(src)) await fs.rename(src, path.join(backup, dir));
-  }
-  for (const file of REPLACE_FILES) {
-    const src = path.join(INSTALL_ROOT, file);
-    if (await exists(src)) await fs.rename(src, path.join(backup, file));
-  }
   const restoreBackup = async () => {
     for (const name of [...REPLACE_DIRS, ...REPLACE_FILES]) {
+      // Only clear the live copy when the backup actually holds this entry —
+      // otherwise a failure before its backup rename would delete the only copy.
+      if (!(await exists(path.join(backup, name)))) continue;
       const dest = path.join(INSTALL_ROOT, name);
       await fs.rm(dest, { recursive: true, force: true }).catch(() => {});
-      if (await exists(path.join(backup, name)))
-        await fs.rename(path.join(backup, name), dest);
+      await renameWithRetry(path.join(backup, name), dest);
     }
   };
+  log(`Backing up current install to ${backup}…`);
   try {
+    for (const dir of REPLACE_DIRS) {
+      const src = path.join(INSTALL_ROOT, dir);
+      if (await exists(src)) await renameWithRetry(src, path.join(backup, dir));
+    }
+    for (const file of REPLACE_FILES) {
+      const src = path.join(INSTALL_ROOT, file);
+      if (await exists(src)) await renameWithRetry(src, path.join(backup, file));
+    }
     for (const dir of REPLACE_DIRS) {
       await fs.cp(path.join(extractDir, dir), path.join(INSTALL_ROOT, dir), { recursive: true });
     }
@@ -194,15 +274,15 @@ async function main() {
       const from = path.join(extractDir, file);
       if (await exists(from)) await fs.cp(from, path.join(INSTALL_ROOT, file));
     }
-    console.log("Restarting services…");
+    log("Restarting services…");
     await run(sparky, ["start", "--prod"], { shell: true, detached: true });
 
-    console.log("Health-checking…");
+    log("Health-checking…");
     if (!(await healthCheck(cfg.port))) throw new Error("Health check failed after update");
 
-    console.log(`Update to ${remote} complete.`);
+    log(`Update to ${remote} complete.`);
   } catch (err) {
-    console.error(`Update failed: ${err.message}. Rolling back…`);
+    log(`Update failed: ${err.message}. Rolling back…`);
     await restoreBackup();
     await run(sparky, ["start", "--prod"], { shell: true, detached: true }).catch(() => {});
     throw err;
@@ -221,7 +301,7 @@ async function exists(p) {
 // Only run when invoked directly (not when imported by tests).
 if (process.argv[1] && process.argv[1].endsWith("updater.mjs")) {
   main().catch((err) => {
-    console.error(err.message);
+    log(`FATAL: ${err.message}`);
     process.exit(1);
   });
 }
