@@ -28,6 +28,9 @@ set "NPM_CLI=%NODE_DIR%\node_modules\npm\bin\npm-cli.js"
 set "PATH=%NODE_DIR%;%PATH%"
 if "%SPARKY_DATA_DIR%"=="" set "SPARKY_DATA_DIR=%BASE_DIR%\data"
 if not exist "%SPARKY_DATA_DIR%" mkdir "%SPARKY_DATA_DIR%" >nul 2>&1
+:: Presence of this file tells the supervise loops to exit instead of
+:: restarting node (set by :stop, cleared by :start).
+set "STOP_FLAG=%SPARKY_DATA_DIR%\.stopping"
 if "%PORT%"=="" set "PORT=3000"
 if "%BRIDGE_HOST%"=="" set "BRIDGE_HOST=127.0.0.1"
 if "%BRIDGE_PORT%"=="" set "BRIDGE_PORT=8000"
@@ -45,6 +48,9 @@ goto help
 
 :: ---------------------------------------------------------------------------
 :start
+:: Clear any stale stop-flag before launching, or the supervise loops would
+:: see it and exit immediately.
+del "%STOP_FLAG%" >nul 2>&1
 set "MODE=dev"
 set "PLCFLAG="
 shift
@@ -108,17 +114,38 @@ if /I "%SVC%"=="backend" (
 ) else (
   set "SVCDIR=%BASE_DIR%\microservice"
 )
-cd /d "%SVCDIR%"
+:: NOTE: deliberately no `cd` into %SVCDIR% — that would make this cmd hold the
+:: service dir as its cwd and block the updater from renaming it. The services
+:: resolve all paths via __dirname/env, so cwd is irrelevant; run node by
+:: absolute path instead.
 :superviseloop
+:: :stop drops STOP_FLAG to end this loop deterministically (window titles are
+:: mutated by cmd /k while node runs, so they can't be matched reliably).
+if exist "%STOP_FLAG%" exit
 echo [%date% %time%] starting %SVC%...
-"%NODE_EXE%" src\server.js
+"%NODE_EXE%" "%SVCDIR%\src\server.js"
 echo [%date% %time%] %SVC% exited (code %errorlevel%); restarting in 3s...
+if exist "%STOP_FLAG%" exit
 timeout /t 3 /nobreak >nul
 goto superviseloop
 
 :: ---------------------------------------------------------------------------
 :stop
 echo Stopping Sparky services...
+:: Signal the supervise loops to exit instead of relaunching node. Set this
+:: BEFORE killing so a loop that's mid-restart sees it rather than racing.
+:: :start clears it again.
+type nul > "%STOP_FLAG%" 2>nul
+:: Primary kill: by listening port. cmd /k mutates each window's title to
+:: "Sparky Backend - <command>" while node runs, so the WINDOWTITLE filter
+:: below misses live services — the port is the stable identifier.
+for %%P in (%PORT% %BRIDGE_PORT%) do (
+  for /f "tokens=5" %%I in ('netstat -ano ^| findstr /C:":%%P " ^| findstr "LISTENING"') do taskkill /F /T /PID %%I >nul 2>&1
+)
+:: Secondary (best-effort): title-based kill. Still useful for the dev-mode
+:: Vite window, which has no fixed port variable. /T tree-kills descendants —
+:: nothing that must survive a stop may be launched under these windows (see
+:: the stage-1 hand-off in deploy\updater.mjs).
 taskkill /FI "WINDOWTITLE eq Sparky Backend*" /T /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq Sparky PLC Bridge*" /T /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq Sparky Frontend*" /T /F >nul 2>&1
@@ -148,11 +175,14 @@ exit /b 1
 copy /Y "%BASE_DIR%\deploy\updater.mjs" "%TEMP%\sparky-updater.mjs" >nul
 if exist "%BASE_DIR%\deploy\update.config.json" copy /Y "%BASE_DIR%\deploy\update.config.json" "%TEMP%\update.config.json" >nul
 set "SPARKY_INSTALL_ROOT=%BASE_DIR%"
+:: The non-check run is stage 1 of the updater: it returns immediately after
+:: relaunching itself detached and console-less, so `sparky stop`'s
+:: taskkill /T tree-kill can never reach it (dead parent, no window title).
 if /I "%~2"=="--check" (
   "%NODE_EXE%" "%TEMP%\sparky-updater.mjs" --check
 ) else (
-  start "Sparky Update" "%NODE_EXE%" "%TEMP%\sparky-updater.mjs"
-  echo Update started in a separate window; services will restart when done.
+  "%NODE_EXE%" "%TEMP%\sparky-updater.mjs"
+  echo Update running in the background ^(log: %TEMP%\sparky-updater.log^); services will restart when done.
 )
 goto end
 
