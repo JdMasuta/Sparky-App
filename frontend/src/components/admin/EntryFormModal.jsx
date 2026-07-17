@@ -48,12 +48,12 @@ export default function EntryFormModal({ isOpen, table, mode, initial, refData, 
           payload[f.name] = values[f.name];
         }
       }
-      if (mode === "edit") {
-        await api.put(`/${table}/${initial[schema.pk]}`, payload);
-      } else {
-        await api.post(`/${table}`, payload);
-      }
-      onSaved();
+      const res =
+        mode === "edit"
+          ? await api.put(`/${table}/${initial[schema.pk]}`, payload)
+          : await api.post(`/${table}`, payload);
+      // Pass the persisted row up so the parent can patch its cache in place.
+      onSaved(res?.row);
     } catch (err) {
       if (err.field) setFieldErrors({ [err.field]: err.message });
       else setFormError(err.message || "Save failed");
