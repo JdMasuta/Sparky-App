@@ -1,66 +1,29 @@
 /* global __APP_VERSION__ */
-import { useEffect, useState } from "react";
 import { Users, FolderKanban, Package, ClipboardList, Cpu, AlertTriangle } from "lucide-react";
 import StatCard from "../ui/StatCard.jsx";
 import Card from "../ui/Card.jsx";
 import Badge from "../ui/Badge.jsx";
 import Spinner from "../ui/Spinner.jsx";
-import { api } from "../../lib/api.js";
+import { useCachedGet } from "../../lib/adminCache.js";
 import { formatDateTime } from "../../lib/tableSchemas.js";
 
 const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
 
 export default function AdminOverview() {
-  const [state, setState] = useState({ loading: true });
+  const { data, error } = useCachedGet("/admin/overview", { ttl: 15_000 });
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const [users, projects, items, checkouts, plc, reports, info] = await Promise.all([
-          api.get("/users"),
-          api.get("/projects"),
-          api.get("/items"),
-          api.get("/checkouts"),
-          api.get("/pull/status").catch(() => ({ connected: false, mode: "unknown" })),
-          api.get("/weekly_report_status").catch(() => []),
-          api.get("/system/info").catch(() => ({ warnings: [] })),
-        ]);
-        if (!alive) return;
-        const lastReport = reports[reports.length - 1];
-        setState({
-          loading: false,
-          counts: {
-            users: users.length,
-            projects: projects.length,
-            items: items.length,
-            checkouts: checkouts.length,
-          },
-          plc,
-          lastReport,
-          warnings: info.warnings || [],
-        });
-      } catch (err) {
-        if (alive) setState({ loading: false, error: err.message });
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  if (state.loading) {
+  if (!data) {
+    if (error) {
+      return <p className="text-sm text-red-600">Failed to load overview: {error.message}</p>;
+    }
     return (
       <div className="flex justify-center py-16">
         <Spinner />
       </div>
     );
   }
-  if (state.error) {
-    return <p className="text-sm text-red-600">Failed to load overview: {state.error}</p>;
-  }
 
-  const { counts, plc, lastReport, warnings } = state;
+  const { counts, plc, lastReport, warnings } = data;
 
   return (
     <div className="space-y-5">
