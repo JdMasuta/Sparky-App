@@ -27,6 +27,7 @@ import { sendReportToEmail } from "./services/controllers/emailController.js";
 import pullRoutes from "./services/routes/pullRoutes.js";
 import plcRoutes from "./services/routes/plcRoutes.js";
 import systemRoutes from "./services/routes/systemRoutes.js";
+import adminRoutes from "./services/routes/adminRoutes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -40,8 +41,12 @@ try {
   console.error("Failed to create logs directory:", err);
 }
 
-// Initialize rate limiter
-const limiter = rateLimit(securityConfig.rateLimiting);
+// Rate limiters (scoped to /api below — static assets, index.html, and /health
+// are exempt). No `trust proxy`: clients connect directly on the LAN, and
+// honoring X-Forwarded-For here would let them spoof their limiter key. If the
+// app is ever placed behind a TLS proxy, add `app.set("trust proxy", 1)`.
+const apiLimiter = rateLimit(securityConfig.rateLimiting.api);
+const authLimiter = rateLimit(securityConfig.rateLimiting.auth);
 
 // Middleware setup
 
@@ -54,8 +59,6 @@ const loggerMiddleware = (req, res, next) => {
 
 // Use the middleware for all routes
 app.use(loggerMiddleware);
-
-app.use(limiter);
 
 // Security headers. CSP is disabled for now because the current built frontend
 // still references CDN scripts (removed in the Phase 4 facelift); once those are
@@ -76,6 +79,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // API Setup
+// General limiter for all API traffic; a stricter one for login attempts
+// (failed attempts only — successful logins don't count, see config).
+app.use("/api", apiLimiter);
+app.use("/api/auth/login", authLimiter);
 app.use("/api/auth", authRoutes);
 // Intent-based Checkout endpoints (operator-facing, open, DB-validated).
 app.use("/api/pull", pullRoutes);
@@ -86,6 +93,9 @@ app.use("/api/email", requireAdmin, emailRoutes);
 // System info + remote update — admin only. MUST be before the generic /api
 // router below, whose /:table catch-all would otherwise swallow /api/system/*.
 app.use("/api/system", requireAdmin, systemRoutes);
+// Aggregated admin dashboard data — admin only. Must also precede the generic
+// /api router so its /:table catch-all doesn't swallow /api/admin/*.
+app.use("/api/admin", requireAdmin, adminRoutes);
 app.use("/api", cableDataRoutes);
 
 // Health check endpoint — MUST be registered before the SPA catch-all below,
