@@ -439,7 +439,14 @@ export const createEntry = (req, res) => {
       .prepare(`INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`)
       .run(...values);
 
-    res.status(201).json({ id: info.lastInsertRowid });
+    // Return the persisted row: it carries server-applied defaults (created_at,
+    // status) that the client cannot reconstruct from its own payload.
+    const pk = getPrimaryKey(table);
+    const row = db
+      .prepare(`SELECT * FROM ${table} WHERE ${pk} = ?`)
+      .get(info.lastInsertRowid);
+
+    res.status(201).json({ id: info.lastInsertRowid, row });
   } catch (error) {
     console.error(`Error creating entry in table ${table}:`, error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -478,7 +485,8 @@ export const updateEntry = (req, res) => {
       return res.status(404).json({ error: "Record not found" });
     }
 
-    res.status(200).json({ message: "Update successful" });
+    const row = db.prepare(`SELECT * FROM ${table} WHERE ${pk} = ?`).get(id);
+    res.status(200).json({ message: "Update successful", row });
   } catch (error) {
     console.error(
       `Error updating entry in table ${table} with ID ${id}:`,
