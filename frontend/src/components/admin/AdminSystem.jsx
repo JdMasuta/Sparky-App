@@ -1,5 +1,5 @@
 /* global __APP_VERSION__ */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { RefreshCw, Trash2, Activity, DownloadCloud } from "lucide-react";
 import Card from "../ui/Card.jsx";
 import Button from "../ui/Button.jsx";
@@ -8,39 +8,33 @@ import DataTable from "../ui/DataTable.jsx";
 import ConfirmDialog from "../ui/ConfirmDialog.jsx";
 import useAlerts from "../shared/Alerts/useAlerts.jsx";
 import { api } from "../../lib/api.js";
+import { useCachedGet } from "../../lib/adminCache.js";
 
 const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
 
 export default function AdminSystem() {
   const { addAlert } = useAlerts();
-  const [status, setStatus] = useState(null);
-  const [tags, setTags] = useState([]);
   const [values, setValues] = useState(null);
   const [reading, setReading] = useState(false);
   const [purging, setPurging] = useState(false);
   const [confirmPurge, setConfirmPurge] = useState(false);
-  const [sysInfo, setSysInfo] = useState(null);
   const [confirmUpdate, setConfirmUpdate] = useState(false);
   const [updating, setUpdating] = useState(false);
 
+  const statusQ = useCachedGet("/plc/status", { ttl: 10_000 });
+  const tagsQ = useCachedGet("/plc/tags", { ttl: 300_000 });
+  const infoQ = useCachedGet("/system/info", { ttl: 60_000 });
+  const status = statusQ.data ?? null;
+  const tags = tagsQ.data?.tags ?? [];
+  const sysInfo = infoQ.data ?? null;
+
   const loadDiagnostics = async () => {
     try {
-      const [s, t, info] = await Promise.all([
-        api.get("/plc/status"),
-        api.get("/plc/tags"),
-        api.get("/system/info").catch(() => null),
-      ]);
-      setStatus(s);
-      setTags(t.tags || []);
-      setSysInfo(info);
+      await Promise.all([statusQ.refresh(), tagsQ.refresh(), infoQ.refresh()]);
     } catch (err) {
       addAlert({ message: `Diagnostics unavailable: ${err.message}`, severity: "error", timeout: 6 });
     }
   };
-
-  useEffect(() => {
-    loadDiagnostics();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyUpdate = async () => {
     setUpdating(true);
@@ -124,6 +118,8 @@ export default function AdminSystem() {
               {status.mode === "sim" && <Badge tone="amber">Simulation</Badge>}
               {status.mode === "real" && <Badge tone="brand">Live PLC</Badge>}
             </div>
+          ) : statusQ.error ? (
+            <p className="text-sm text-red-600">Diagnostics unavailable: {statusQ.error.message}</p>
           ) : (
             <p className="text-sm text-slate-400">Loading…</p>
           )}
