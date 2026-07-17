@@ -101,6 +101,37 @@ export const sendCheckoutReport = async (req, res) => {
   }
 };
 
+// Method: Send checkout report to every configured recipient in one request.
+// The recipient list comes from the DB (same source as the weekly cron), so
+// the client no longer loops one POST per recipient.
+export const sendCheckoutReportToAll = async (req, res) => {
+  const { timestamp } = req.body;
+
+  if (!timestamp) {
+    return res.status(400).json({ error: "timestamp parameter is required" });
+  }
+
+  const db = getDatabase();
+  const recipients = db.prepare("SELECT email FROM report_recipients").all();
+
+  let sent = 0;
+  const failures = [];
+  for (const { email } of recipients) {
+    try {
+      await sendReportToEmail(timestamp, email);
+      sent += 1;
+    } catch (error) {
+      // No data for the period fails identically for every recipient — abort.
+      if (error.message === "No data found for the specified time period") {
+        return res.status(404).json({ error: error.message });
+      }
+      failures.push({ email, error: error.message });
+    }
+  }
+
+  res.status(200).json({ requested: recipients.length, sent, failures });
+};
+
 // Method: Test email configuration
 export const testEmailConfig = async (req, res) => {
   const { email } = req.body;
