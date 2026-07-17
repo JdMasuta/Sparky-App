@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Trash2, Send } from "lucide-react";
 import Card from "../ui/Card.jsx";
 import Button from "../ui/Button.jsx";
@@ -8,6 +8,7 @@ import ConfirmDialog from "../ui/ConfirmDialog.jsx";
 import { Input } from "../ui/Field.jsx";
 import useAlerts from "../shared/Alerts/useAlerts.jsx";
 import { api } from "../../lib/api.js";
+import { useCachedGet, invalidate, patchList } from "../../lib/adminCache.js";
 import { formatDateTime } from "../../lib/tableSchemas.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -19,34 +20,17 @@ const daysAgoISO = (n) => {
 
 export default function AdminReports() {
   const { addAlert } = useAlerts();
-  const [recipients, setRecipients] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [newEmail, setNewEmail] = useState("");
   const [emailError, setEmailError] = useState("");
   const [toRemove, setToRemove] = useState(null);
   const [since, setSince] = useState(daysAgoISO(7));
   const [sending, setSending] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [r, h] = await Promise.all([
-        api.get("/report_recipients"),
-        api.get("/weekly_report_status"),
-      ]);
-      setRecipients(r);
-      setHistory([...h].reverse());
-    } catch (err) {
-      addAlert({ message: `Failed to load: ${err.message}`, severity: "error", timeout: 6 });
-    } finally {
-      setLoading(false);
-    }
-  }, [addAlert]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const recipientsQ = useCachedGet("/report_recipients", { ttl: 60_000 });
+  const historyQ = useCachedGet("/weekly_report_status", { ttl: 60_000 });
+  const recipients = recipientsQ.data ?? [];
+  const history = [...(historyQ.data ?? [])].reverse();
+  const loading = recipientsQ.loading || historyQ.loading;
 
   const addRecipient = async () => {
     const email = newEmail.trim();
@@ -56,10 +40,11 @@ export default function AdminReports() {
     }
     setEmailError("");
     try {
-      await api.post("/report_recipients", { email });
+      const res = await api.post("/report_recipients", { email });
       setNewEmail("");
       addAlert({ message: "Recipient added.", severity: "success", timeout: 3 });
-      await load();
+      if (res?.row) patchList("/report_recipients", (list) => [...list, res.row]);
+      else invalidate("/report_recipients");
     } catch (err) {
       setEmailError(err.message || "Could not add recipient");
     }
@@ -67,9 +52,10 @@ export default function AdminReports() {
 
   const removeRecipient = async () => {
     try {
-      await api.del(`/report_recipients/${toRemove.id}`);
+      const removedId = toRemove.id;
+      await api.del(`/report_recipients/${removedId}`);
       setToRemove(null);
-      await load();
+      patchList("/report_recipients", (list) => list.filter((r) => r.id !== removedId));
     } catch (err) {
       addAlert({ message: err.message, severity: "error", timeout: 6 });
     }
@@ -81,24 +67,22 @@ export default function AdminReports() {
       return;
     }
     setSending(true);
-    const timestamp = `${since} 00:00:00`;
-    let ok = 0;
-    let failed = 0;
-    for (const r of recipients) {
-      try {
-        await api.post("/email/email-report", { timestamp, email: r.email });
-        ok += 1;
-      } catch {
-        failed += 1;
-      }
+    try {
+      // One request; the server loops over the configured recipients itself.
+      const res = await api.post("/email/email-report-all", {
+        timestamp: `${since} 00:00:00`,
+      });
+      const failed = res.failures?.length ?? 0;
+      addAlert({
+        message: `Report sent to ${res.sent} recipient(s)${failed ? `, ${failed} failed` : ""}.`,
+        severity: failed ? "warning" : "success",
+        timeout: 5,
+      });
+    } catch (err) {
+      addAlert({ message: err.message || "Send failed", severity: "error", timeout: 6 });
+    } finally {
+      setSending(false);
     }
-    setSending(false);
-    addAlert({
-      message: `Report sent to ${ok} recipient(s)${failed ? `, ${failed} failed` : ""}.`,
-      severity: failed ? "warning" : "success",
-      timeout: 5,
-    });
-    await load();
   };
 
   return (
