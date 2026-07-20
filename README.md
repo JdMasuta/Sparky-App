@@ -47,7 +47,7 @@ frontend/       React + Vite single-page app (built into backend/src/public)
 microservice/   PLC bridge (EtherNet/IP driver + behavioral simulator)
 runtime/        Portable Node runtime (node.exe) — the only Node on the edge device
 deploy/         Edge updater (updater.mjs)
-data/           Runtime data (SQLite DB, .env, logs) — git-ignored, outside releases
+data/           Runtime data (SQLite DB, backend.env, microservice.env, logs) — git-ignored, outside releases
 sparky.bat      Single entry point: start / stop / build / update / register
 ```
 
@@ -60,12 +60,11 @@ SQLite, created/upgraded programmatically on boot (`backend/src/init`). Core tab
 
 ### Data directory & database file
 
-Where the data lives and how the DB file is named is controlled by two env vars
-(set them in `.env` — see below):
+Where the data lives and how the DB file is named is controlled by these env vars:
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `SPARKY_DATA_DIR` | Directory holding the SQLite DB, `.env`, and `logs/`. Kept outside the release tree so updates never touch it. | `<repo>/data` |
+| `SPARKY_DATA_DIR` | Directory holding the SQLite DB, `backend.env`, `microservice.env`, and `logs/`. Kept outside the release tree so updates never touch it. | `<repo>/data` |
 | `NODE_ENV` | Selects the default DB file name. | `development` |
 | `SPARKY_DB_FILE` | Overrides the DB file name (bare filename, lives in `SPARKY_DATA_DIR`). | — |
 
@@ -74,19 +73,15 @@ in production, `test.sqlite` under test. So the full path is
 `%SPARKY_DATA_DIR%\<env>.sqlite` (e.g. `data\prod.sqlite` in production). Set
 `SPARKY_DB_FILE=something.sqlite` only if you need a non-default name.
 
-`SPARKY_DATA_DIR` can be set two ways:
+Each service loads its own env file from the data dir: the backend reads
+`%SPARKY_DATA_DIR%\backend.env` and the PLC bridge reads
+`%SPARKY_DATA_DIR%\microservice.env`. `SPARKY_DATA_DIR` itself must come from
+the OS environment — `sparky.bat` exports it (defaulting to `<repo>\data`)
+before launching either service; when a service is run directly without
+`sparky.bat`, it falls back to the same `<repo>/data` default.
 
-- **In `backend/.env`** (handy for development):
-  ```bash
-  SPARKY_DATA_DIR=D:\sparky-data
-  ```
-  The backend pre-reads `backend/.env` to discover this before opening the DB.
-- **In the OS environment** (production): `sparky.bat` exports
-  `SPARKY_DATA_DIR=<repo>\data` before launching, and the backend then also loads
-  secrets from `%SPARKY_DATA_DIR%\.env`.
-
-Precedence (highest first): real OS environment → `%SPARKY_DATA_DIR%\.env` →
-`backend/.env`.
+Precedence (highest first): real OS environment →
+`%SPARKY_DATA_DIR%\backend.env` (or `microservice.env` for the bridge).
 
 > **First production boot:** the legacy stack ran as `NODE_ENV=development`, so its
 > live data is in `dev.sqlite`. On the first `--prod` start, if no `prod.sqlite`
@@ -104,8 +99,9 @@ Prerequisites: Node 23.6.0 (matches the bundled runtime) and npm.
 (cd frontend && npm install)
 (cd microservice && npm install)
 
-# configure
-cp backend/.env.example backend/.env   # then fill in the blanks
+# configure (env files live in the shared data/ dir)
+cp backend/.env.example data/backend.env             # then fill in the blanks
+cp microservice/.env.example data/microservice.env
 
 # run (three terminals; on Windows just: sparky start)
 (cd microservice && PLC_MODE=sim npm run dev)   # virtual PLC on 127.0.0.1:8000
@@ -121,9 +117,10 @@ pull) so the full Checkout flow can be exercised without hardware.
 
 ## Configuration
 
-All configuration is via environment variables; see `backend/.env.example`. Secrets
-(email password, admin password hash, session/bridge secrets) belong only in
-`SPARKY_DATA_DIR/.env`, never in tracked scripts.
+All configuration is via environment variables; see `backend/.env.example` and
+`microservice/.env.example`. Secrets (email password, admin password hash,
+session/bridge secrets) belong only in `SPARKY_DATA_DIR/backend.env` and
+`SPARKY_DATA_DIR/microservice.env`, never in tracked scripts.
 
 Generate the admin password hash and a session secret:
 
@@ -154,8 +151,8 @@ sparky register             :: (once, elevated) run "sparky start --prod" at boo
 - The built frontend is served by Express on a single port; there is no Vite server and
   no `--host` in production. `PLC_MODE=real` connects to the PLC; `PLC_MODE=sim` runs the
   simulator for commissioning.
-- Data (SQLite DB, `.env`, logs) lives in `SPARKY_DATA_DIR` (default `.\data`), outside the
-  code/release tree, so updates never clobber it.
+- Data (SQLite DB, `backend.env`/`microservice.env`, logs) lives in `SPARKY_DATA_DIR`
+  (default `.\data`), outside the code/release tree, so updates never clobber it.
 
 ### Remote updates
 
@@ -188,7 +185,7 @@ Before relying on it on‑site:
 1. Confirm the tag names/types in `microservice/src/tags.js` against the running PLC program
    (encoder `quantity`/`backupQuantity` are REAL, `completeRequest`/`completeAck` are BOOL,
    the operator strings are STRING, `stepNumber` is DINT).
-2. Set `PLC_IP` (and `PLC_SLOT` if not 0) in the data‑dir `.env`.
+2. Set `PLC_IP` (and `PLC_SLOT` if not 0) in the data‑dir `microservice.env`.
 3. Verify connectivity from the Admin Dashboard → System → PLC diagnostics (*Read all tags*).
 4. Dry‑run a pull with the physical HMI and confirm the encoder ramps and `completeRequest`
    fires as the Checkout monitor expects.

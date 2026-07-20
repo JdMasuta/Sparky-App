@@ -3,7 +3,7 @@
 //
 //   node backend/scripts/hash-password.js "my secret password"
 //
-// Copy the printed line into your .env (SPARKY_DATA_DIR/.env in production).
+// Copy the printed line into SPARKY_DATA_DIR/backend.env (default: <repo>/data/backend.env).
 import { hashPassword } from "../src/services/auth/crypto.js";
 
 const password = process.argv.slice(2).join(" ");
