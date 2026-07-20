@@ -1,3 +1,4 @@
+import "./setup-env.js"; // must precede server.js — pins env before dotenv runs
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../src/server.js";
