@@ -61,7 +61,29 @@ export const TAGS = {
   beaconWarningY: { name: "_SIM[1].3", type: "BOOL" }, // BEACON_WARNING_Y (bit 35)
   beaconAlarmR: { name: "_SIM[1].4", type: "BOOL" }, // BEACON_ALARM_R (bit 36)
   beaconHorn: { name: "_SIM[1].5", type: "BOOL" }, // BEACON_HORN (bit 37)
-  hornStartBeep: { name: "_SIM[1].6", type: "BOOL" }, // HORN_START_BEEP (bit 38)
+  hornStartBeep: { name: "_SIM[1].6", type: "BOOL" }, // HORN_STARTBEEP (bit 38)
+
+  // Aliased IO
+  // Inputs (I1000):
+  SSW_OPCON_SSW_JOG_FORWARD: { name: "I1000.0", type: "BOOL" },
+  SSW_OPCON_SSW_JOG_REVERSE: { name: "I1000.1", type: "BOOL" },
+  PB_OPCON_FAULT_RESET_PB: { name: "I1000.2", type: "BOOL" },
+  E_STOP_OPCON_E_STOP: { name: "I1000.3", type: "BOOL" },
+  PB_OPCON_OP_ENABLE_PB: { name: "I1000.4", type: "BOOL" },
+  DSK_PULLER_MOTOR_DISCONNECT_0K: { name: "I1000.5", type: "BOOL" },
+  PE_PULLER_COUNT_WHEEL: { name: "I1000.6", type: "BOOL" },
+  PE_PULLER: { name: "I1000.7", type: "BOOL" },
+  PRX_SAFETY_FLOOR_STOP_NON_OPERATOR_SIDE: { name: "I1000.8", type: "BOOL" },
+  PRX_SAFETY_FLOOR_STOP_OPERATOR_SIDE: { name: "I1000.9", type: "BOOL" },
+  // Outputs (O1000):
+  E_STOP_PB_LIGHT: { name: "O1000.0", type: "BOOL" },
+  FAULT_RESET_PB_LIGHT: { name: "O1000.1", type: "BOOL" },
+  BEACON_STACK_BLUE_RUNNING: { name: "O1000.2", type: "BOOL" },
+  BEACON_STACK_YELLOW_WARNING: { name: "O1000.3", type: "BOOL" },
+  BEACON_STACK_RED_ALARM: { name: "O1000.4", type: "BOOL" },
+  BEACON_STACK_HORN_SOUNDER: { name: "O1000.5", type: "BOOL" },
+  Wired_FWD: { name: "O1000.7", type: "BOOL" },
+  Wired_REV: { name: "O1000.8", type: "BOOL" },
 };
 
 export const isAlias = (alias) =>
@@ -69,7 +91,8 @@ export const isAlias = (alias) =>
 
 /** Resolve an alias to its real PLC address; pass through unknown names so the
  * real driver can still read/write arbitrary tags for diagnostics. */
-export const resolveName = (alias) => (isAlias(alias) ? TAGS[alias].name : alias);
+export const resolveName = (alias) =>
+  isAlias(alias) ? TAGS[alias].name : alias;
 
 /** Default zero value for a tag type (used to initialize the simulator store). */
 export const defaultValue = (type) => {
