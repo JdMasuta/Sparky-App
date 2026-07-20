@@ -1,3 +1,4 @@
+import "./init/env.js"; // must load env before config.js reads process.env
 import express from "express";
 import cors from "cors";
 import { config, isSim } from "./config.js";
