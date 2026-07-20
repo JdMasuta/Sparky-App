@@ -159,7 +159,12 @@ call "%NODE_EXE%" "%NPM_CLI%" --prefix "%BASE_DIR%\backend" ci --omit=dev || got
 echo Installing microservice dependencies...
 call "%NODE_EXE%" "%NPM_CLI%" --prefix "%BASE_DIR%\microservice" ci --omit=dev || goto buildfail
 echo Building frontend...
-call "%NODE_EXE%" "%NPM_CLI%" --prefix "%BASE_DIR%\frontend" ci || goto buildfail
+:: --include=dev overrides npm's `omit` default, which silently becomes
+:: ["dev"] whenever NODE_ENV=production is set in the environment (e.g. left
+:: over from `sparky start --prod` in the same shell) — without this flag
+:: that config skips vite/@vitejs/plugin-react entirely and `run build` below
+:: fails for lack of the vite binary.
+call "%NODE_EXE%" "%NPM_CLI%" --prefix "%BASE_DIR%\frontend" ci --include=dev || goto buildfail
 call "%NODE_EXE%" "%NPM_CLI%" --prefix "%BASE_DIR%\frontend" run build || goto buildfail
 echo.
 echo Build complete. Start with:  sparky start --prod

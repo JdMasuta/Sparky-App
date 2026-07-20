@@ -38,10 +38,14 @@ jobs:
         env:
           PLC_MODE: sim
 
-      # Build the frontend into backend/src/public.
+      # Build the frontend into backend/src/public. --include=dev guards
+      # against npm's `omit` config silently defaulting to ["dev"] if
+      # NODE_ENV=production is ever set in this job (it would skip
+      # vite/@vitejs/plugin-react and fail the build for lack of the vite
+      # binary — see sparky.bat's :build for the same guard).
       - name: Build frontend
         working-directory: frontend
-        run: npm ci && npm run build
+        run: npm ci --include=dev && npm run build
 
       # Production dependencies WITH native win-x64 prebuilds (better-sqlite3),
       # so the edge device does not need a compiler.
