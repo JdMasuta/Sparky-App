@@ -16,9 +16,11 @@ export const TAGS = {
   userName: { name: "_200_GLB.StringData[0]", type: "STRING" },
   moNumber: { name: "_200_GLB.StringData[1]", type: "STRING" },
   itemNumber: { name: "_200_GLB.StringData[2]", type: "STRING" },
-  completeAck: { name: "CompleteAck", type: "BOOL" },
+  CompleteAck: { name: "_200_GLB.Current_State", type: "BOOL" },
+  completeAck1: { name: "HMI.Data_To_HMI.Bit[0]", type: "BOOL" },
+  completeAck2: { name: "HMI.Data_From_HMI.Bit[0]", type: "BOOL" },
   stepNumber: { name: "_200_GLB.DintData[2]", type: "DINT" },
-  test: { name: "Reel.StringData[0]", type: "STRING" },
+  test: { name: "Reel.StringData[9]", type: "STRING" },
   testWrite: { name: "_200_GLB.DintData[49]", type: "DINT" },
   testWrite2: { name: "_200_GLB.DintData[48]", type: "DINT" },
 

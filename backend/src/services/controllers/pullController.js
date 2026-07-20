@@ -133,11 +133,24 @@ export const monitorPull = async (req, res) => {
         });
       }
 
-      const results = await plcBridge.read(["completeRequest", "quantity"]);
-      completeRequest = results.completeRequest === true;
+      const results = await plcBridge.read([
+        "completeRequest",
+        "quantity",
+        "completeAck1",
+      ]);
+      completeRequest =
+        results.completeRequest === true || results.completeAck1 === true;
       quantity = Number(results.quantity) || 0;
 
       if (completeRequest && (threshold === 0 || quantity >= threshold)) {
+        try {
+          await plcBridge.write({ completeAck2: 1 });
+        } catch (err) {
+          console.error("Complete Ack to PLC error:", err.message);
+          res
+            .status(502)
+            .json({ error: "PLC write failed", message: err.message });
+        }
         monitoringSessions.delete(sessionId);
         return res.status(200).json({
           success: true,
@@ -160,13 +173,11 @@ export const monitorPull = async (req, res) => {
   } catch (err) {
     monitoringSessions.delete(sessionId);
     console.error("monitorPull error:", err.message);
-    res
-      .status(502)
-      .json({
-        success: false,
-        error: "PLC monitor failed",
-        message: err.message,
-      });
+    res.status(502).json({
+      success: false,
+      error: "PLC monitor failed",
+      message: err.message,
+    });
   }
 };
 
