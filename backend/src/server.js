@@ -29,6 +29,7 @@ import plcRoutes from "./services/routes/plcRoutes.js";
 import systemRoutes from "./services/routes/systemRoutes.js";
 import adminRoutes from "./services/routes/adminRoutes.js";
 import { expireInactiveProjects } from "./services/db/projectExpiry.js";
+import { createShutdown } from "./init/lifecycle.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -192,8 +193,11 @@ async function runWeeklyReport(timestamp) {
   return success;
 }
 
+// Scheduled jobs; handles are kept so graceful shutdown can stop them.
+const cronTasks = [];
+
 // Weekly Cron Job — every Friday at 3:30 PM
-cron.schedule("30 15 * * 5", async () => {
+cronTasks.push(cron.schedule("30 15 * * 5", async () => {
   console.log("Starting weekly report job...");
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -204,17 +208,17 @@ cron.schedule("30 15 * * 5", async () => {
       ? "Weekly report completed."
       : "Weekly report finished with errors.",
   );
-});
+}));
 
 // Daily at 2:00 AM — mark projects with no checkouts for two months INACTIVE
-cron.schedule("0 2 * * *", () => {
+cronTasks.push(cron.schedule("0 2 * * *", () => {
   try {
     const expired = expireInactiveProjects(getDatabase());
     console.log(`Project expiry job: ${expired} project(s) set INACTIVE.`);
   } catch (error) {
     console.error("Project expiry job failed:", error);
   }
-});
+}));
 
 // Start server
 const startServer = async () => {
@@ -254,20 +258,21 @@ const startServer = async () => {
       console.log(startMessage.trim());
     });
 
-    // Graceful shutdown
-    const shutdown = async () => {
-      const shutdownMessage = `${new Date().toISOString()} Server shutting down...\n`;
-      await fs.appendFile(serverConfig.logging.file, shutdownMessage);
-      console.log(shutdownMessage.trim());
-
-      await closeDatabase();
-      server.close(async () => {
-        const closedMessage = `${new Date().toISOString()} Server closed\n`;
-        await fs.appendFile(serverConfig.logging.file, closedMessage);
-        console.log(closedMessage.trim());
-        process.exit(0);
-      });
-    };
+    // Graceful shutdown: stop cron, drain HTTP, then close the DB (see
+    // init/lifecycle.js — closing the DB first broke in-flight requests).
+    const shutdown = createShutdown({
+      server,
+      closeDatabase,
+      cronTasks,
+      log: async (message) => {
+        console.log(message);
+        try {
+          await fs.appendFile(serverConfig.logging.file, message + "\n");
+        } catch {
+          /* logging must never block shutdown */
+        }
+      },
+    });
 
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
