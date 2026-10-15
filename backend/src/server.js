@@ -28,6 +28,7 @@ import pullRoutes from "./services/routes/pullRoutes.js";
 import plcRoutes from "./services/routes/plcRoutes.js";
 import systemRoutes from "./services/routes/systemRoutes.js";
 import adminRoutes from "./services/routes/adminRoutes.js";
+import { expireInactiveProjects } from "./services/db/projectExpiry.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -203,6 +204,16 @@ cron.schedule("30 15 * * 5", async () => {
       ? "Weekly report completed."
       : "Weekly report finished with errors.",
   );
+});
+
+// Daily at 2:00 AM — mark projects with no checkouts for two months INACTIVE
+cron.schedule("0 2 * * *", () => {
+  try {
+    const expired = expireInactiveProjects(getDatabase());
+    console.log(`Project expiry job: ${expired} project(s) set INACTIVE.`);
+  } catch (error) {
+    console.error("Project expiry job failed:", error);
+  }
 });
 
 // Start server
