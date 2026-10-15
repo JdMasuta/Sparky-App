@@ -23,6 +23,7 @@ const EntryField = forwardRef(
     ref
   ) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const containerRef = useRef(null);
 
     useEffect(() => {
@@ -49,6 +50,45 @@ const EntryField = forwardRef(
       )
     );
 
+    const selectOption = (option) => {
+      onChange({ target: { name, value: option } });
+      setIsDropdownOpen(false);
+      setHighlightedIndex(-1);
+    };
+
+    const handleChange = (e) => {
+      setHighlightedIndex(-1);
+      onChange(e);
+    };
+
+    const handleKeyDown = (e) => {
+      const isOpen = isDropdown && isDropdownOpen && filteredOptions.length > 0;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (isDropdown && filteredOptions.length > 0) {
+          e.preventDefault();
+          if (!isOpen) {
+            setIsDropdownOpen(true);
+            return;
+          }
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          setHighlightedIndex(
+            (i) => (i + step + filteredOptions.length) % filteredOptions.length
+          );
+          return;
+        }
+      } else if (e.key === "Enter" && isOpen && filteredOptions[highlightedIndex]) {
+        e.preventDefault();
+        selectOption(filteredOptions[highlightedIndex]);
+        return;
+      } else if (e.key === "Escape" && isOpen) {
+        e.preventDefault();
+        setIsDropdownOpen(false);
+        setHighlightedIndex(-1);
+        return;
+      }
+      onKeyDown?.(e);
+    };
+
     return (
       <div ref={containerRef} className={`animate-fade-in relative flex-1 ${hidden ? "hidden" : ""}`}>
         <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-600">
@@ -60,10 +100,10 @@ const EntryField = forwardRef(
           id={name}
           name={name}
           value={fieldValue}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
           onFocus={() => isDropdown && setIsDropdownOpen(true)}
-          onInput={(e) => onChange(e)}
+          onInput={handleChange}
           className="block w-full rounded-lg border-0 px-3 py-2.5 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-brand-500"
           placeholder={placeholder}
           pattern={pattern}
@@ -74,11 +114,15 @@ const EntryField = forwardRef(
             {filteredOptions.map((option, index) => (
               <li
                 key={index}
-                className="cursor-pointer px-3 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+                ref={(el) => {
+                  if (index === highlightedIndex) el?.scrollIntoView?.({ block: "nearest" });
+                }}
+                className={`cursor-pointer px-3 py-2 text-sm hover:bg-brand-50 hover:text-brand-700 ${
+                  index === highlightedIndex ? "bg-brand-50 text-brand-700" : "text-slate-700"
+                }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  onChange({ target: { name, value: option } });
-                  setIsDropdownOpen(false);
+                  selectOption(option);
                 }}
               >
                 {option}
