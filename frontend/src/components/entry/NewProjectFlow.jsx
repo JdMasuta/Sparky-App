@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import AdminPasswordPrompt from "./AdminPasswordPrompt.jsx";
+import ConfirmDialog from "../ui/ConfirmDialog.jsx";
 import EntryFormModal from "../admin/EntryFormModal.jsx";
 import { api } from "../../lib/api.js";
 
 // Checkout -> "new project" flow: admin password, then the Admin page's
 // EntryFormModal. `request` is { kind: "m" | "a", value, existing } where
 // `existing` is an INACTIVE project row to reactivate (edit mode) or null to add.
+// Reactivation first shows a notice explaining what is needed (with Cancel).
 // If this flow created the admin session it signs out again when it finishes,
 // so the shop-floor kiosk is never left logged in as admin.
 export default function NewProjectFlow({ request, onSaved, onClose }) {
-  const [step, setStep] = useState(null); // null | "password" | "form"
+  const [step, setStep] = useState(null); // null | "notice" | "password" | "form"
   const ownsSession = useRef(false);
 
   const releaseSession = () => {
@@ -18,19 +20,25 @@ export default function NewProjectFlow({ request, onSaved, onClose }) {
     api.post("/auth/logout").catch(() => {});
   };
 
+  const cancelled = useRef(false);
+
+  // An admin who is already signed in on this browser skips the password prompt.
+  const checkSession = () =>
+    api
+      .get("/auth/session")
+      .then((d) => !cancelled.current && setStep(d.authenticated ? "form" : "password"))
+      .catch(() => !cancelled.current && setStep("password"));
+
   useEffect(() => {
+    cancelled.current = false;
     if (!request) {
       setStep(null);
       return;
     }
-    let cancelled = false;
-    // An admin who is already signed in on this browser skips the prompt.
-    api
-      .get("/auth/session")
-      .then((d) => !cancelled && setStep(d.authenticated ? "form" : "password"))
-      .catch(() => !cancelled && setStep("password"));
+    if (request.existing) setStep("notice");
+    else checkSession();
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
   }, [request]);
 
@@ -60,6 +68,18 @@ export default function NewProjectFlow({ request, onSaved, onClose }) {
 
   return (
     <>
+      <ConfirmDialog
+        isOpen={step === "notice"}
+        title="Project is inactive"
+        message={`Project ${value} is inactive and must be reactivated before it can be used for a checkout. Continuing asks for the admin password, then lets you set the project back to ACTIVE.`}
+        confirmLabel="Continue"
+        variant="primary"
+        onClose={() => finish(null)}
+        onConfirm={() => {
+          setStep(null);
+          checkSession();
+        }}
+      />
       <AdminPasswordPrompt
         isOpen={step === "password"}
         message={

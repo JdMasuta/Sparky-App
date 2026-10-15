@@ -371,15 +371,17 @@ function Checkout() {
       placeholder: "Type or select project...",
       options: options.projects,
       optionDetails: projectDetails,
-      labelAction: canCreateProject ? (
-        <button
-          type="button"
-          onClick={startNewProjectFlow}
-          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
-        >
-          <Plus className="h-3.5 w-3.5" /> New project
-        </button>
-      ) : null,
+      labelAction:
+        canCreateProject || isInactiveMatch ? (
+          <button
+            type="button"
+            onClick={startNewProjectFlow}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
+          >
+            <Plus className="h-3.5 w-3.5" />{" "}
+            {isInactiveMatch ? "Reactivate" : "New project"}
+          </button>
+        ) : null,
       ref: fieldRefs.project,
     },
     {
