@@ -103,6 +103,9 @@ export const getBackupQuantity = async (req, res) => {
 // that resolves with the final encoder quantity. The backend polls the bridge.
 const monitoringSessions = new Map(); // sessionId -> { aborted: boolean }
 
+/** Open monitor long-polls, i.e. checkouts waiting on a pull (drain uses this). */
+export const activeMonitorCount = () => monitoringSessions.size;
+
 // GET /api/pull/monitor/:sessionId?threshold=&timeout=&pollInterval=
 export const monitorPull = async (req, res) => {
   const { sessionId } = req.params;
