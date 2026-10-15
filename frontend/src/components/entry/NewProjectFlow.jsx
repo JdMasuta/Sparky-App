@@ -56,7 +56,7 @@ export default function NewProjectFlow({ request, onSaved, onClose }) {
     ? { ...existing, status: "ACTIVE" }
     : kind === "m"
       ? { project_number: value.toUpperCase() }
-      : { a_number: value };
+      : { a_number: value.toUpperCase() };
 
   return (
     <>
