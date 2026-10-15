@@ -1,0 +1,26 @@
+# Build context for the Sparky Cart image (#25). The image holds code only:
+# no data, secrets, env files, or device configuration may ever enter it.
+.git
+.github
+**/node_modules
+data/
+releases/
+runtime/
+backend/src/public/
+backend/src/test-scripts/
+backend/src/database/
+backend/test/
+microservice/test/
+deploy/docker/
+frontend/dist/
+**/*.sqlite
+**/*.sqlite-*
+**/*.backup
+**/.env*
+**/*.env
+**/*.log
+**/coverage/
+*.md
+setup-env.bat
+sparky.bat
+release.sh
