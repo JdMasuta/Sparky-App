@@ -8,6 +8,7 @@ const EntryField = forwardRef(
   (
     {
       label,
+      labelAction,
       name,
       value,
       onChange,
@@ -91,9 +92,12 @@ const EntryField = forwardRef(
 
     return (
       <div ref={containerRef} className={`animate-fade-in relative flex-1 ${hidden ? "hidden" : ""}`}>
-        <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-600">
-          {label}
-        </label>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label htmlFor={name} className="block text-sm font-medium text-slate-600">
+            {label}
+          </label>
+          {labelAction}
+        </div>
         <input
           ref={ref}
           type={type}

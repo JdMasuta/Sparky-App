@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Plus } from "lucide-react";
 import useAlerts from "../components/shared/Alerts/useAlerts";
 import { useCheckoutForm } from "../components/entry/useCheckoutForm";
 import { useCheckoutData } from "../components/entry/useCheckoutData";
@@ -9,13 +10,19 @@ import { useFieldAutomation } from "../components/entry/useFieldAutomation";
 import EntryField from "../components/shared/EntryField.jsx";
 import PullOptionsModal from "../components/entry/PullModal.jsx";
 import SOP from "../components/entry/SOP.jsx";
+import NewProjectFlow from "../components/entry/NewProjectFlow.jsx";
+import {
+  classifyProjectNumber,
+  findProject,
+} from "../components/entry/projectNumbers.js";
 import Button from "../components/ui/Button.jsx";
 import Badge from "../components/ui/Badge.jsx";
 
 function Checkout() {
   const [showPullModal, setShowPullModal] = useState(false);
   const { addAlert } = useAlerts();
-  const { options, idMappings, projectDetails, itemDetails } = useCheckoutData();
+  const { options, idMappings, projectDetails, itemDetails, allProjects, reload } =
+    useCheckoutData();
   const {
     formData,
     setFormData,
@@ -41,6 +48,33 @@ function Checkout() {
   const activeFieldRef = useRef(null);
 
   const [isFirstLoad, setIsFirstLoad] = useState(true); // Track first load
+
+  // #18: create (or reactivate) a project from an unknown M/A-number.
+  const [newProjectRequest, setNewProjectRequest] = useState(null);
+  const [pendingProject, setPendingProject] = useState(null);
+  const projectCandidate = String(formData.project ?? "").trim();
+  const projectKind = classifyProjectNumber(projectCandidate);
+  const matchedProject = projectKind
+    ? findProject(allProjects, projectCandidate)
+    : null;
+  const canCreateProject = Boolean(projectKind) && !matchedProject;
+  const isInactiveMatch =
+    Boolean(matchedProject) &&
+    String(matchedProject.status ?? "ACTIVE").toUpperCase() !== "ACTIVE";
+
+  const startNewProjectFlow = () => {
+    if (canCreateProject) {
+      setNewProjectRequest({ kind: projectKind, value: projectCandidate, existing: null });
+    } else if (isInactiveMatch) {
+      setNewProjectRequest({ kind: projectKind, value: projectCandidate, existing: matchedProject });
+    }
+  };
+
+  const handleProjectSaved = async (row) => {
+    setNewProjectRequest(null);
+    await reload();
+    setPendingProject(row.project_number);
+  };
 
   const optionKeyMap = {
     name: "users",
@@ -131,6 +165,16 @@ function Checkout() {
       handleAutoLogic();
     }
   }, [formData.item, options.items]);
+
+  // Once the reloaded option list contains the new/reactivated project, select
+  // it through the normal field-change path so it is written to the PLC.
+  useEffect(() => {
+    if (!pendingProject) return;
+    if (options.projects.includes(pendingProject)) {
+      handleFieldChange({ target: { name: "project", value: pendingProject } });
+    }
+    setPendingProject(null);
+  }, [pendingProject, options.projects]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasHandledAutoLogic = useRef(false);
   const hasHandledManualEntry = useRef(false);
@@ -268,6 +312,15 @@ function Checkout() {
       placeholder: "Type or select project...",
       options: options.projects,
       optionDetails: projectDetails,
+      labelAction: canCreateProject ? (
+        <button
+          type="button"
+          onClick={startNewProjectFlow}
+          className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
+        >
+          <Plus className="h-3.5 w-3.5" /> New project
+        </button>
+      ) : null,
       ref: fieldRefs.project,
     },
     {
@@ -313,6 +366,8 @@ function Checkout() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && field.name === "quantity")
                       handleManualEntry();
+                    if (e.key === "Enter" && field.name === "project")
+                      startNewProjectFlow();
                   }}
                   showField={shouldShowField(field.name)}
                 />
@@ -341,6 +396,12 @@ function Checkout() {
           formData={formData}
         />
       </div>
+
+      <NewProjectFlow
+        request={newProjectRequest}
+        onSaved={handleProjectSaved}
+        onClose={() => setNewProjectRequest(null)}
+      />
 
       <PullOptionsModal
         isOpen={showPullModal}
