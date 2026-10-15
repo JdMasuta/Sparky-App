@@ -45,3 +45,17 @@ body {
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out;
 }
+
+/* One-shot glow to draw the eye to a field (e.g. status on reactivation). */
+@keyframes fieldFlash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(0 163 224 / 0);
+  }
+  35% {
+    box-shadow: 0 0 0 4px rgb(0 163 224 / 0.55);
+  }
+}
+.animate-field-flash {
+  animation: fieldFlash 1s ease-out 0.15s 1;
+}

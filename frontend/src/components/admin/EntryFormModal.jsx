@@ -8,7 +8,8 @@ import { api } from "../../lib/api.js";
 // Schema-driven Add/Edit form. Fields are typed (text/number/select/textarea/FK
 // dropdown) per tableSchemas, and server-side 4xx errors are surfaced inline on
 // the offending field.
-export default function EntryFormModal({ isOpen, table, mode, initial, refData, onClose, onSaved }) {
+// `flashField` (optional field name) makes that field glow once when the modal opens.
+export default function EntryFormModal({ isOpen, table, mode, initial, refData, flashField, onClose, onSaved }) {
   const schema = schemas[table];
   const [values, setValues] = useState(() => buildInitial(schema, initial));
   const [fieldErrors, setFieldErrors] = useState({});
@@ -103,6 +104,7 @@ export default function EntryFormModal({ isOpen, table, mode, initial, refData, 
               <Select
                 key={f.name}
                 {...common}
+                className={f.name === flashField ? "animate-field-flash" : ""}
                 options={opts}
                 placeholder={f.required ? undefined : "—"}
               />

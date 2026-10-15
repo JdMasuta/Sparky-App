@@ -99,6 +99,7 @@ export default function NewProjectFlow({ request, onSaved, onClose }) {
           table="projects"
           mode={existing ? "edit" : "add"}
           initial={initial}
+          flashField={existing ? "status" : undefined}
           refData={{}}
           onClose={() => finish(null)}
           onSaved={(row) => finish(row ?? null)}
