@@ -27,6 +27,35 @@ export function createApp(driver) {
   return app;
 }
 
+/**
+ * Graceful shutdown: stop accepting requests, then close the PLC session so the
+ * controller releases its CIP connection instead of waiting for it to time out.
+ * Idempotent per server.
+ */
+const shutdowns = new WeakMap(); // server -> pending shutdown promise
+
+export function shutdown(driver, server, { exit = (code) => process.exit(code), log = console.log } = {}) {
+  if (shutdowns.has(server)) return shutdowns.get(server);
+  const pending = (async () => {
+    log("PLC bridge shutting down...");
+    await new Promise((resolve) => {
+      server.close(() => resolve());
+      server.closeIdleConnections?.();
+    });
+    let code = 0;
+    try {
+      await driver.disconnect();
+    } catch (err) {
+      code = 1;
+      log(`PLC disconnect failed: ${err.message}`);
+    }
+    log("PLC bridge stopped");
+    exit(code);
+  })();
+  shutdowns.set(server, pending);
+  return pending;
+}
+
 // Start only when run directly (not when imported by tests).
 const isMain = process.argv[1] && process.argv[1].endsWith("server.js");
 if (isMain) {
@@ -36,7 +65,7 @@ if (isMain) {
     .catch((err) => console.error("Initial PLC connect failed:", err.message));
 
   const app = createApp(driver);
-  app.listen(config.port, config.host, () => {
+  const server = app.listen(config.port, config.host, () => {
     console.log(
       `PLC bridge (${config.mode}) listening on http://${config.host}:${config.port}`
     );
@@ -46,4 +75,7 @@ if (isMain) {
       );
     }
   });
+
+  process.on("SIGTERM", () => shutdown(driver, server));
+  process.on("SIGINT", () => shutdown(driver, server));
 }
