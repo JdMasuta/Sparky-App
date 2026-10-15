@@ -1,0 +1,100 @@
+# Sparky Cart edge deployment (#25). See SECURITY.md for the threat model.
+#
+# Compose runs only the two edge containers. App containers (old/new) are
+# created by the orchestrator from deploy/edge/app-spec.mjs, never here.
+#
+#   docker compose -f compose.yaml --env-file /etc/sparky/edge.env -p sparky up -d
+#
+# Volumes are external: `install` creates them once, so `compose down -v` can
+# never delete the database. Use deploy/docker/wsl/setup-host.sh (via
+# sparky-docker.bat) rather than calling compose by hand.
+name: sparky
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  user: node
+  restart: unless-stopped
+  stop_grace_period: 30s
+
+services:
+  # LAN-facing and deliberately dumb: no docker.sock, no data, no secrets.
+  proxy:
+    <<: *hardening
+    image: ${SPARKY_EDGE_IMAGE:?set SPARKY_EDGE_IMAGE in edge.env}
+    container_name: sparky-proxy
+    command: ["node", "deploy/edge/edge.mjs", "--role=proxy"]
+    environment:
+      SPARKY_ROUTE_DIR: /route
+    ports:
+      - "${SPARKY_BIND_ADDR:-0.0.0.0}:${SPARKY_HTTP_PORT:-3000}:3000"
+    volumes:
+      - sparky-route:/route:ro
+    networks: [sparky-public, sparky-front]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/__edge/status').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Trusted core: holds docker.sock, never LAN-facing, no published ports.
+  orchestrator:
+    <<: *hardening
+    image: ${SPARKY_EDGE_IMAGE:?set SPARKY_EDGE_IMAGE in edge.env}
+    container_name: sparky-orchestrator
+    command: ["node", "deploy/edge/edge.mjs", "--role=orchestrator"]
+    group_add: ["${DOCKER_GID:?set DOCKER_GID in edge.env}"]
+    environment:
+      SPARKY_TZ: ${SPARKY_TZ:?set SPARKY_TZ in edge.env}
+      SPARKY_CONTROL_SUBNET: ${SPARKY_CONTROL_SUBNET:-172.30.2.0/24}
+      SPARKY_APP_IMAGE: ${SPARKY_APP_IMAGE:-}
+      SPARKY_IMAGE_REPO: ${SPARKY_IMAGE_REPO:-ghcr.io/jdmasuta/sparky-app}
+      SPARKY_RELEASE_REPO: ${SPARKY_RELEASE_REPO:-JdMasuta/Sparky-App}
+      SPARKY_UPDATE_MANIFEST_URL: ${SPARKY_UPDATE_MANIFEST_URL:-}
+      SPARKY_UPDATE_WINDOW: ${SPARKY_UPDATE_WINDOW:-17:00-03:00}
+      SPARKY_DRAIN_TIMEOUT_MS: ${SPARKY_DRAIN_TIMEOUT_MS:-600000}
+      SPARKY_RETRY_MS: ${SPARKY_RETRY_MS:-900000}
+      SPARKY_VERIFY_HOLD_MS: ${SPARKY_VERIFY_HOLD_MS:-10000}
+      SPARKY_SCHED_TICK_MS: ${SPARKY_SCHED_TICK_MS:-30000}
+      SPARKY_BACKUP_HOST_DIR: ${SPARKY_BACKUP_HOST_DIR:-}
+      SPARKY_STATE_DIR: /state
+      SPARKY_ROUTE_DIR: /route
+      TZ: ${SPARKY_TZ}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sparky-edge-state:/state
+      - sparky-route:/route
+    networks: [sparky-control, sparky-orch-egress]
+    healthcheck:
+      disable: true
+
+networks:
+  # Published-port network for the proxy only.
+  sparky-public:
+    name: sparky-public
+    ipam: { config: [{ subnet: "${SPARKY_PUBLIC_SUBNET:-172.30.0.0/24}" }] }
+  # proxy <-> apps; internal: no route out.
+  sparky-front:
+    name: sparky-front
+    internal: true
+    ipam: { config: [{ subnet: "${SPARKY_FRONT_SUBNET:-172.30.1.0/24}" }] }
+  # orchestrator <-> apps and app <-> app handover; internal.
+  sparky-control:
+    name: sparky-control
+    internal: true
+    ipam: { config: [{ subnet: "${SPARKY_CONTROL_SUBNET:-172.30.2.0/24}" }] }
+  # orchestrator -> GitHub (release manifests). Image pulls are done by dockerd.
+  sparky-orch-egress:
+    name: sparky-orch-egress
+    ipam: { config: [{ subnet: "${SPARKY_ORCH_EGRESS_SUBNET:-172.30.3.0/24}" }] }
+  # sparky-app-egress (apps -> PLC, SMTP, DNS) is created by `install`: no
+  # compose service uses it, so compose would not create it.
+
+volumes:
+  sparky-data: { external: true }
+  sparky-edge-state: { external: true }
+  sparky-route: { external: true }
