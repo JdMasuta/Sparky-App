@@ -30,6 +30,9 @@ import systemRoutes from "./services/routes/systemRoutes.js";
 import adminRoutes from "./services/routes/adminRoutes.js";
 import { expireInactiveProjects } from "./services/db/projectExpiry.js";
 import { createShutdown } from "./init/lifecycle.js";
+import { createDrainController } from "./services/lifecycle/drain.js";
+import { activeMonitorCount } from "./services/controllers/pullController.js";
+import { plcBridge } from "./services/clients/plcBridgeClient.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -44,9 +47,11 @@ try {
 }
 
 // Rate limiters (scoped to /api below — static assets, index.html, and /health
-// are exempt). No `trust proxy`: clients connect directly on the LAN, and
-// honoring X-Forwarded-For here would let them spoof their limiter key. If the
-// app is ever placed behind a TLS proxy, add `app.set("trust proxy", 1)`.
+// are exempt). Native installs have no proxy, so X-Forwarded-For is ignored
+// (clients could spoof their limiter key). In the container deployment the
+// edge proxy overwrites X-Forwarded-For with the real peer address and sets
+// TRUST_PROXY=1, so exactly one proxy hop is trusted.
+if (process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
 const apiLimiter = rateLimit(securityConfig.rateLimiting.api);
 const authLimiter = rateLimit(securityConfig.rateLimiting.auth);
 
@@ -87,7 +92,13 @@ app.use("/api", apiLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth", authRoutes);
 // Intent-based Checkout endpoints (operator-facing, open, DB-validated).
-app.use("/api/pull", pullRoutes);
+// Drain mode (container updates): refuses new checkout starts while an update
+// waits for in-flight pulls to finish. Inert unless an update supervisor asks.
+const drain = createDrainController({
+  activeMonitors: activeMonitorCount,
+  readStep: async () => (await plcBridge.read(["stepNumber"])).stepNumber,
+});
+app.use("/api/pull", drain.middleware, pullRoutes);
 // Raw PLC diagnostics — admin only.
 app.use("/api/plc", requireAdmin, plcRoutes);
 // Email report triggers — admin only.
@@ -272,10 +283,34 @@ const startServer = async () => {
           /* logging must never block shutdown */
         }
       },
+      // Under the container supervisor, report the clean stop over IPC first.
+      exit: (code) => {
+        if (!process.send || !process.connected) return process.exit(code);
+        try {
+          process.send({ type: "stopped", code }, () => process.exit(code));
+        } catch {
+          process.exit(code);
+        }
+      },
     });
 
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
+
+    // Update-handover control from the container supervisor (deploy/container),
+    // over the IPC channel it opens. Native runs have no IPC channel.
+    if (process.send) {
+      process.on("message", async (msg) => {
+        if (msg?.type === "drain") {
+          const result = await drain.start(Number(msg.deadlineMs) || 600000);
+          process.send({ type: "drain-result", ...result });
+        } else if (msg?.type === "resume") {
+          drain.resume();
+        } else if (msg?.type === "shutdown") {
+          await shutdown();
+        }
+      });
+    }
   } catch (error) {
     const errorMessage = `${new Date().toISOString()} Failed to start server: ${error}\n`;
     await fs.appendFile(serverConfig.logging.file, errorMessage);
