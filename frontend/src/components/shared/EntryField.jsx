@@ -14,6 +14,7 @@ const EntryField = forwardRef(
       onKeyDown,
       placeholder,
       options = [],
+      optionDetails = {},
       pattern,
       showField = true,
       hidden = false,
@@ -40,8 +41,12 @@ const EntryField = forwardRef(
 
     const isDropdown = options.length > 0;
     const fieldValue = hidden ? "0" : value ?? "";
+    const query = String(fieldValue).toLowerCase();
+    // optionDetails maps an option to extra lines shown (and searched) under it.
     const filteredOptions = options.filter((option) =>
-      option.toLowerCase().includes(String(fieldValue).toLowerCase())
+      [option, ...(optionDetails[option] || [])].some((text) =>
+        String(text).toLowerCase().includes(query)
+      )
     );
 
     return (
@@ -77,6 +82,11 @@ const EntryField = forwardRef(
                 }}
               >
                 {option}
+                {(optionDetails[option] || []).map((line, i) => (
+                  <div key={i} className="text-xs text-slate-400">
+                    {line}
+                  </div>
+                ))}
               </li>
             ))}
           </ul>
