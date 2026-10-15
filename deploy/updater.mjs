@@ -26,7 +26,8 @@ const INSTALL_ROOT = process.env.SPARKY_INSTALL_ROOT
 // Directories and root files swapped on update (the portable runtime and the
 // data dir are deliberately NOT touched).
 const REPLACE_DIRS = ["backend", "microservice", "deploy"];
-const REPLACE_FILES = ["sparky.bat", "README.md"];
+// package.json carries the product version that releases are tagged with.
+const REPLACE_FILES = ["sparky.bat", "README.md", "package.json"];
 
 // The detached stage-2 updater has no console, so this file is the only record
 // of an update run (truncated at the start of each run).
@@ -59,6 +60,23 @@ export function isNewer(remote, local) {
   return false;
 }
 
+/**
+ * Installed product version: the root package.json (the version release tags
+ * track). Installs that predate the product version have no root package.json,
+ * so fall back to backend/package.json, which the updater compared before.
+ */
+export async function readInstalledVersion(root) {
+  for (const rel of ["package.json", path.join("backend", "package.json")]) {
+    try {
+      const pkg = JSON.parse(await fs.readFile(path.join(root, rel), "utf8"));
+      if (pkg.version) return pkg.version;
+    } catch {
+      /* missing or unreadable: try the next source */
+    }
+  }
+  throw new Error(`Cannot determine the installed version under ${root}`);
+}
+
 export function pickAssets(release) {
   const assets = release.assets || [];
   const zip = assets.find((a) => /\.zip$/.test(a.name));
@@ -88,8 +106,7 @@ async function loadConfig() {
 }
 
 async function currentVersion() {
-  const pkg = JSON.parse(await fs.readFile(path.join(INSTALL_ROOT, "backend", "package.json"), "utf8"));
-  return pkg.version;
+  return readInstalledVersion(INSTALL_ROOT);
 }
 
 async function fetchLatestRelease(repo) {

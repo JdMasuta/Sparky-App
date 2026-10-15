@@ -10,22 +10,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = path.resolve(__dirname, "../../../"); // backend/
 const INSTALL_ROOT = path.resolve(BACKEND_ROOT, ".."); // repo/install root
 
-let cachedVersion = null;
-async function appVersion() {
-  if (cachedVersion) return cachedVersion;
+const versionCache = new Map();
+async function packageVersion(dir) {
+  if (versionCache.has(dir)) return versionCache.get(dir);
+  let version;
   try {
-    const pkg = JSON.parse(await fs.readFile(path.join(BACKEND_ROOT, "package.json"), "utf8"));
-    cachedVersion = pkg.version;
+    const pkg = JSON.parse(await fs.readFile(path.join(dir, "package.json"), "utf8"));
+    version = pkg.version ?? "unknown";
   } catch {
-    cachedVersion = "unknown";
+    version = "unknown";
   }
-  return cachedVersion;
+  versionCache.set(dir, version);
+  return version;
 }
 
 // GET /api/system/info
+// `version` is the backend's own version; `productVersion` is the Sparky Cart
+// product version from the install root package.json (what releases are tagged with).
 export const getInfo = async (req, res) => {
   res.status(200).json({
-    version: await appVersion(),
+    version: await packageVersion(BACKEND_ROOT),
+    productVersion: await packageVersion(INSTALL_ROOT),
     plcMode: (process.env.PLC_MODE || "sim").toLowerCase(),
     node: process.version,
     environment: process.env.NODE_ENV || "development",

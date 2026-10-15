@@ -1,0 +1,9 @@
+{
+  "name": "sparky-cart",
+  "version": "3.5.0",
+  "private": true,
+  "description": "Sparky Cart product version and release tooling. frontend/, backend/ and microservice/ carry their own independent versions; release tags (vX.Y.Z) track this product version.",
+  "scripts": {
+    "release": "bash ./release.sh"
+  }
+}

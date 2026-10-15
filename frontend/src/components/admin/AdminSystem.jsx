@@ -94,10 +94,12 @@ export default function AdminSystem() {
             </Button>
           }
         >
-          <p className="text-2xl font-semibold text-slate-800">Sparky Cart {version}</p>
+          <p className="text-2xl font-semibold text-slate-800">
+            Sparky Cart {sysInfo?.productVersion ?? ""}
+          </p>
           <p className="mt-1 text-xs text-slate-400">
             {sysInfo
-              ? `Node ${sysInfo.node} · ${sysInfo.environment} · PLC ${sysInfo.plcMode}`
+              ? `Frontend ${version} · Backend ${sysInfo.version} · Node ${sysInfo.node} · ${sysInfo.environment} · PLC ${sysInfo.plcMode}`
               : "Remote updates are delivered as versioned releases and applied on-device."}
           </p>
         </Card>

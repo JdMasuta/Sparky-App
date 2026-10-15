@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
-import { parseVersion, isNewer, pickAssets, sha256File } from "../../deploy/updater.mjs";
+import {
+  parseVersion,
+  isNewer,
+  pickAssets,
+  sha256File,
+  readInstalledVersion,
+} from "../../deploy/updater.mjs";
 
 test("parseVersion handles v-prefix and numeric parts", () => {
   assert.deepEqual(parseVersion("v3.1.2"), [3, 1, 2]);
@@ -16,6 +22,24 @@ test("isNewer compares versions correctly", () => {
   assert.ok(isNewer("4.0.0", "3.9.9"));
   assert.ok(!isNewer("3.0.0", "3.0.0"));
   assert.ok(!isNewer("2.9.9", "3.0.0"));
+});
+
+test("readInstalledVersion prefers the root (product) package.json", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "upd-ver-"));
+  await fs.mkdir(path.join(root, "backend"));
+  await fs.writeFile(path.join(root, "backend", "package.json"), JSON.stringify({ version: "3.4.0" }));
+  // Pre-product-version install: only backend/package.json exists.
+  assert.equal(await readInstalledVersion(root), "3.4.0");
+  await fs.writeFile(path.join(root, "package.json"), JSON.stringify({ version: "3.5.0" }));
+  assert.equal(await readInstalledVersion(root), "3.5.0");
+  // The first product release must look newer to devices still on backend versions.
+  assert.ok(isNewer("3.5.0", "3.3.32"));
+  assert.ok(isNewer("3.5.0", "3.4.0"));
+});
+
+test("readInstalledVersion throws when no version source exists", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "upd-ver-"));
+  await assert.rejects(readInstalledVersion(root), /Cannot determine the installed version/);
 });
 
 test("pickAssets finds the zip and manifest from a release", () => {

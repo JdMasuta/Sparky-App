@@ -1,8 +1,17 @@
 name: Release
 
+# Release tags (vX.Y.Z) track the Sparky Cart PRODUCT version in the root
+# package.json; frontend/backend/microservice carry their own versions.
 on:
   push:
     tags: ["v*"]
+  # Manual re-run for an existing tag (e.g. after a transient CI failure).
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build, e.g. v3.5.0"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,6 +25,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-node@v4
         with:
@@ -24,7 +35,31 @@ jobs:
       - name: Derive version from tag
         id: ver
         shell: bash
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag '$TAG' is not of the form vX.Y.Z"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      # Fail fast if the tag doesn't match the product version being released.
+      - name: Check tag matches product version
+        id: comp
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          product=$(node -p "require('./package.json').version")
+          if [ "$product" != "$VERSION" ]; then
+            echo "::error::Tag v$VERSION does not match the product version $product in package.json"
+            exit 1
+          fi
+          for c in frontend backend microservice; do
+            echo "$c=$(node -p "require('./$c/package.json').version")" >> "$GITHUB_OUTPUT"
+          done
 
       # Run the test suites before packaging (fail the release if red).
       - name: Backend tests
@@ -70,13 +105,19 @@ jobs:
           Copy-Item deploy       $stage/deploy       -Recurse
           Copy-Item sparky.bat   $stage/sparky.bat
           Copy-Item README.md    $stage/README.md
+          Copy-Item package.json $stage/package.json
           # Drop any local env/db that may have leaked into the tree.
           Get-ChildItem -Recurse -Path $stage -Include *.sqlite,.env -Force -ErrorAction SilentlyContinue | Remove-Item -Force
 
           $zip = "sparky-app-$ver.zip"
           Compress-Archive -Path "$stage/*" -DestinationPath $zip -Force
           $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          @{ version = $ver; asset = $zip; sha256 = $sha } | ConvertTo-Json | Out-File -Encoding utf8 manifest.json
+          $components = @{
+            frontend     = "${{ steps.comp.outputs.frontend }}"
+            backend      = "${{ steps.comp.outputs.backend }}"
+            microservice = "${{ steps.comp.outputs.microservice }}"
+          }
+          @{ version = $ver; asset = $zip; sha256 = $sha; components = $components } | ConvertTo-Json | Out-File -Encoding utf8 manifest.json
           echo "zip=$zip"  >> $env:GITHUB_OUTPUT
           echo "sha=$sha"  >> $env:GITHUB_OUTPUT
           Write-Host "Packaged $zip ($sha)"
@@ -84,12 +125,19 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
           name: Sparky Cart ${{ steps.ver.outputs.version }}
           files: |
             ${{ steps.pkg.outputs.zip }}
             manifest.json
           body: |
             Automated release of Sparky Cart ${{ steps.ver.outputs.version }}.
+
+            | Component | Version |
+            | --- | --- |
+            | Frontend | ${{ steps.comp.outputs.frontend }} |
+            | Backend | ${{ steps.comp.outputs.backend }} |
+            | PLC bridge (microservice) | ${{ steps.comp.outputs.microservice }} |
 
             SHA-256: `${{ steps.pkg.outputs.sha }}`
 

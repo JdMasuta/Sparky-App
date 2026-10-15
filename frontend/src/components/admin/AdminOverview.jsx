@@ -86,8 +86,8 @@ export default function AdminOverview() {
       </div>
 
       <p className="text-center text-xs text-slate-400">
-        Sparky Cart · Frontend {version} · Backend {info?.version ?? "—"} · PLC bridge{" "}
-        {plc.version ?? "—"}
+        Sparky Cart {info?.productVersion ?? "—"} · Frontend {version} · Backend{" "}
+        {info?.version ?? "—"} · PLC bridge {plc.version ?? "—"}
       </p>
     </div>
   );
