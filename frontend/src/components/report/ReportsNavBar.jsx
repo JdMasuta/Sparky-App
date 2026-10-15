@@ -58,7 +58,7 @@ const NavBar = () => {
           }}
           isClearable
           placeholderText="Select a date range"
-          className="rounded-lg border-0 px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-500"
+          className="w-64 rounded-lg border-0 px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-500"
         />
         <Button onClick={handleGenerateReport} disabled={loading}>
           <FileBarChart className="h-4 w-4" /> {loading ? "Generating…" : "Generate Report"}

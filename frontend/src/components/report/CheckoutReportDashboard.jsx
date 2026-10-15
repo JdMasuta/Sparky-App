@@ -47,10 +47,10 @@ const CheckoutReport = ({
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg p-6 shadow-sm">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
           <h2 className="text-lg font-semibold">Detailed Report</h2>
-          <div className="flex items-center gap-2">
-            <div className="checkout-button">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="checkout-button flex flex-wrap items-center gap-2">
               <input
                 type="email"
                 value={email}
