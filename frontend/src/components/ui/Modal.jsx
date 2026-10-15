@@ -6,13 +6,18 @@ import { X } from "lucide-react";
 export default function Modal({ isOpen, onClose, title, children, footer, size = "md" }) {
   const dialogRef = useRef(null);
   const previouslyFocused = useRef(null);
+  // Callers usually pass an inline onClose (new identity every render). Keep it
+  // in a ref so the effect below runs only when the modal opens/closes — not on
+  // every parent re-render, which used to re-run the focus logic per keystroke.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
     previouslyFocused.current = document.activeElement;
 
     const onKeyDown = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
       if (e.key === "Tab") trapFocus(e);
     };
     const trapFocus = (e) => {
@@ -32,19 +37,21 @@ export default function Modal({ isOpen, onClose, title, children, footer, size =
     };
 
     document.addEventListener("keydown", onKeyDown);
-    // Focus the first field in the dialog.
-    setTimeout(() => {
-      const focusable = dialogRef.current?.querySelector(
-        'input, select, textarea, button'
-      );
+    // Focus the first form field (falling back to a button, e.g. the header's
+    // close button, for dialogs without fields).
+    const focusTimer = setTimeout(() => {
+      const dialog = dialogRef.current;
+      const focusable =
+        dialog?.querySelector("input, select, textarea") ?? dialog?.querySelector("button");
       focusable?.focus();
     }, 0);
 
     return () => {
+      clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKeyDown);
       previouslyFocused.current?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
