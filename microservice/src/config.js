@@ -13,8 +13,9 @@ export const config = {
   // bind). Empty string disables the check (dev convenience).
   token: process.env.BRIDGE_TOKEN || "",
 
-  // Real driver
-  plcIp: process.env.PLC_IP || "192.168.1.70",
+  // Real driver. No default PLC address: device addressing is configuration
+  // (microservice.env), never code — see validateConfig().
+  plcIp: process.env.PLC_IP || "",
   plcSlot: Number(process.env.PLC_SLOT || 0),
   connectTimeoutMs: Number(process.env.PLC_TIMEOUT_MS || 5000),
 
@@ -33,3 +34,16 @@ export const config = {
 };
 
 export const isSim = () => config.mode === "sim";
+
+/**
+ * Fail fast on configuration the bridge cannot run with. Real mode needs an
+ * explicit PLC_IP; sim mode needs nothing.
+ */
+export function validateConfig(cfg = config) {
+  if (cfg.mode !== "sim" && !cfg.plcIp) {
+    throw new Error(
+      "PLC_IP is not set. Set it in microservice.env (in SPARKY_DATA_DIR) when PLC_MODE=real."
+    );
+  }
+  return cfg;
+}
