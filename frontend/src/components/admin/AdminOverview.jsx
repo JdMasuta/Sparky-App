@@ -83,7 +83,7 @@ export default function AdminOverview() {
         </Card>
       </div>
 
-      <p className="text-center text-xs text-slate-400">Sparky Cart · version {version}</p>
+      <p className="text-center text-xs text-slate-400">Sparky Cart · Version {version}</p>
     </div>
   );
 }
