@@ -21,12 +21,13 @@ const DATA_DIR = process.env.SPARKY_DATA_DIR
 
 export const serverConfig = {
   port: process.env.PORT || 3000,
+  // Device/LAN origins (e.g. a Vite dev server reached by IP) belong in
+  // CORS_ORIGIN, not in code.
   corsOrigin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",")
     : [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://10.16.49.1:5173",
         "http://localhost:3000",
       ],
   environment: process.env.NODE_ENV || "development",
