@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          # Full history + tags: the changelog step diffs against the previous tag.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -122,6 +124,29 @@ jobs:
           echo "sha=$sha"  >> $env:GITHUB_OUTPUT
           Write-Host "Packaged $zip ($sha)"
 
+      # Changelog for the release notes, generated from conventional commits
+      # between the previous release tag and this one (git-cliff, pinned).
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          prev=$(git describe --tags --abbrev=0 "${TAG}~1" 2>/dev/null || true)
+          if [ -n "$prev" ]; then range="$prev..$TAG"; else range="$TAG"; fi
+          echo "Changelog range: $range"
+          curl -sL -o git-cliff.zip \
+            "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-pc-windows-msvc.zip"
+          unzip -o -j git-cliff.zip -d "$RUNNER_TEMP/git-cliff" > /dev/null
+          cliff=$(find "$RUNNER_TEMP/git-cliff" -name "git-cliff.exe" | head -1)
+          "$cliff" --strip header "$range" > changelog.md
+          {
+            echo "notes<<EOF"
+            cat changelog.md
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -132,6 +157,10 @@ jobs:
             manifest.json
           body: |
             Automated release of Sparky Cart ${{ steps.ver.outputs.version }}.
+
+            ## What's changed
+
+            ${{ steps.changelog.outputs.notes }}
 
             | Component | Version |
             | --- | --- |
