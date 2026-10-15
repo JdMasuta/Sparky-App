@@ -26,6 +26,8 @@ const EntryField = forwardRef(
 
     useEffect(() => {
       const handleClickOutside = (event) => {
+        // Notifications live outside the container; interacting with one must not close the dropdown.
+        if (event.target.closest?.("[data-alerts-overlay]")) return;
         if (containerRef.current && !containerRef.current.contains(event.target)) {
           setIsDropdownOpen(false);
         }
