@@ -5,7 +5,9 @@
 #   proxy          node deploy/edge/edge.mjs --role=proxy
 #   orchestrator   node deploy/edge/edge.mjs --role=orchestrator
 # The image holds code only. The DB, secrets and device configuration live in
-# the data volume mounted at /data (see SECURITY.md).
+# the data volume mounted at /data (see SECURITY.md). /state and /route are
+# mount points for the orchestrator's state and the proxy route volumes; they
+# exist here, owned by node, so fresh named volumes inherit that ownership.
 
 # Pinned by digest; Node version matches CI and the portable runtime.
 ARG NODE_IMAGE=node:23.6.0-bookworm-slim@sha256:66a57ce3fb719590aed5a22776e4de507ab4c0f445e89a761fc6847573103df3
@@ -43,8 +45,8 @@ LABEL org.opencontainers.image.title="sparky-app" \
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
            /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
            /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* \
- && mkdir -p /data /backups \
- && chown node:node /data /backups
+ && mkdir -p /data /backups /state /route \
+ && chown node:node /data /backups /state /route
 
 WORKDIR /app
 COPY package.json ./
