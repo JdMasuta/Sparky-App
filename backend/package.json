@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "3.3.32",
+  "version": "3.4.0",
   "main": "src/server.js",
   "type": "module",
   "scripts": {

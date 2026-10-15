@@ -1,6 +1,6 @@
 {
   "name": "plc-link",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "PLC bridge microservice for the Sparky Cart web app (EtherNet/IP driver + behavioral simulator). Binds to loopback only.",
   "license": "ISC",
   "author": "Josh Meesey",
