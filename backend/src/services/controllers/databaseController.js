@@ -134,7 +134,7 @@ export const getActiveTableData = (req, res) => {
         "SELECT project_id, project_number, a_number, name FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' ORDER BY project_number"
       )
       .all();
-    const items = db.prepare("SELECT item_id, sku FROM items ORDER BY sku").all();
+    const items = db.prepare("SELECT item_id, sku, name FROM items ORDER BY sku").all();
 
     res.status(200).json({
       users,

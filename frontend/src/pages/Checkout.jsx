@@ -15,7 +15,7 @@ import Badge from "../components/ui/Badge.jsx";
 function Checkout() {
   const [showPullModal, setShowPullModal] = useState(false);
   const { addAlert } = useAlerts();
-  const { options, idMappings, projectDetails } = useCheckoutData();
+  const { options, idMappings, projectDetails, itemDetails } = useCheckoutData();
   const {
     formData,
     setFormData,
@@ -275,6 +275,7 @@ function Checkout() {
       name: "item",
       placeholder: "Type or select item...",
       options: options.items,
+      optionDetails: itemDetails,
       ref: fieldRefs.item,
     },
     {

@@ -10,6 +10,8 @@ export const useCheckoutData = () => {
 
   // Secondary lines (A-number, project name) shown under each project option.
   const [projectDetails, setProjectDetails] = useState({});
+  // Item name shown under each SKU option.
+  const [itemDetails, setItemDetails] = useState({});
 
   const [idMappings, setIdMappings] = useState({
     users: new Map(),
@@ -53,6 +55,12 @@ export const useCheckoutData = () => {
           )
         );
 
+        setItemDetails(
+          Object.fromEntries(
+            data.items.map((item) => [item.sku, [item.name].filter(Boolean)])
+          )
+        );
+
         setOptions({
           users: data.users.map((user) => user.name),
           projects: data.projects.map((project) => project.project_number),
@@ -66,5 +74,5 @@ export const useCheckoutData = () => {
     fetchData();
   }, []);
 
-  return { options, idMappings, projectDetails };
+  return { options, idMappings, projectDetails, itemDetails };
 };
