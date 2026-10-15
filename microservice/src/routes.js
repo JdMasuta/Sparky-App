@@ -1,6 +1,20 @@
 import express from "express";
+import { readFileSync } from "fs";
 import { TAGS } from "./tags.js";
 import { isSim } from "./config.js";
+
+// Bridge version from microservice/package.json, read once at startup and
+// reported on /status so the admin page can show it.
+export const VERSION = (() => {
+  try {
+    const pkg = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8")
+    );
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+})();
 
 // Build the router around a driver instance. The driver is either the real
 // EtherNet/IP driver or the simulator; sim-only routes are mounted only when
@@ -9,11 +23,15 @@ export function buildRoutes(driver) {
   const router = express.Router();
 
   router.get("/health", (req, res) => {
-    res.json({ status: "ok", mode: driver.mode });
+    res.json({ status: "ok", mode: driver.mode, version: VERSION });
   });
 
   router.get("/status", (req, res) => {
-    res.json({ connected: driver.connected, mode: driver.mode });
+    res.json({ connected: driver.connected, mode: driver.mode, version: VERSION });
+  });
+
+  router.get("/version", (req, res) => {
+    res.json({ version: VERSION });
   });
 
   // Tag metadata (alias -> real address/type). No PLC access; used by the

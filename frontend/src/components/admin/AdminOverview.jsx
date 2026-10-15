@@ -11,6 +11,8 @@ const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"
 
 export default function AdminOverview() {
   const { data, error } = useCachedGet("/admin/overview", { ttl: 15_000 });
+  // Shares the cache entry with AdminSystem; carries the backend version.
+  const { data: info } = useCachedGet("/system/info", { ttl: 60_000 });
 
   if (!data) {
     if (error) {
@@ -83,7 +85,10 @@ export default function AdminOverview() {
         </Card>
       </div>
 
-      <p className="text-center text-xs text-slate-400">Sparky Cart · Version {version}</p>
+      <p className="text-center text-xs text-slate-400">
+        Sparky Cart · Frontend {version} · Backend {info?.version ?? "—"} · PLC bridge{" "}
+        {plc.version ?? "—"}
+      </p>
     </div>
   );
 }
