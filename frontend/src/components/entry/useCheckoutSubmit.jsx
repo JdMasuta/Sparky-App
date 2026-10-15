@@ -18,7 +18,12 @@ async function getQuantity(quantity) {
   return quantity;
 }
 
-export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
+export const useCheckoutSubmit = (
+  formData,
+  idMappings,
+  setFormData,
+  extraLines = [],
+) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -36,6 +41,34 @@ export const useCheckoutSubmit = (formData, idMappings, setFormData) => {
         quantity: parseFloat(formData.quantity) || null,
         // No client timestamp — the server records it authoritatively.
       };
+
+      // Multi-line checkout (#17): manual quantities only, saved all-or-nothing.
+      if (extraLines.length > 0) {
+        const rows = [
+          checkoutData,
+          ...extraLines.map((line) => ({
+            user_id: userId,
+            project_id: projectId,
+            item_id: idMappings.items.get(line.item),
+            quantity: parseFloat(line.quantity) || null,
+          })),
+        ];
+        console.log("Submitting checkout batch:", JSON.stringify(rows));
+        const response = await fetch("/api/checkouts/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows }),
+        });
+        if (!response.ok) {
+          throw new Error("Failed to submit checkout batch");
+        }
+        resetForm();
+        return {
+          quantity: rows.reduce((sum, row) => sum + (row.quantity || 0), 0),
+          lineCount: rows.length,
+          success: true,
+        };
+      }
 
       // Handle null quantity by fetching backup
       if (checkoutData.quantity === null) {

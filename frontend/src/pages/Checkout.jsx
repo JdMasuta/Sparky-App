@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import useAlerts from "../components/shared/Alerts/useAlerts";
 import { useCheckoutForm } from "../components/entry/useCheckoutForm";
 import { useCheckoutData } from "../components/entry/useCheckoutData";
@@ -7,6 +7,7 @@ import { useCheckoutSubmit } from "../components/entry/useCheckoutSubmit";
 import { useRSLinxMonitor } from "../components/entry/useRSLinxMonitor";
 import { usePLCTags } from "../components/entry/usePLCTags";
 import { useFieldAutomation } from "../components/entry/useFieldAutomation";
+import { useExtraLines } from "../components/entry/useExtraLines";
 import EntryField from "../components/shared/EntryField.jsx";
 import PullOptionsModal from "../components/entry/PullModal.jsx";
 import SOP from "../components/entry/SOP.jsx";
@@ -30,10 +31,13 @@ function Checkout() {
     isValidSelection,
     isInvalidQuantity,
   } = useCheckoutForm(options);
+  const { extraLines, addLine, updateLine, removeLine, resetLines } =
+    useExtraLines();
   const { handleSubmit: submitCheckout } = useCheckoutSubmit(
     formData,
     idMappings,
     setFormData,
+    extraLines,
   );
   const {
     startMonitoring,
@@ -159,6 +163,7 @@ function Checkout() {
     if (
       formData.item &&
       isValidSelection(formData.item, options.items) &&
+      extraLines.length === 0 &&
       !hasHandledAutoLogic.current
     ) {
       hasHandledAutoLogic.current = true;
@@ -267,10 +272,13 @@ function Checkout() {
     const response = await submitCheckout(e);
     if (response["success"]) {
       addAlert({
-        message: `Checkout submission successful!\nQuantity: ${response["quantity"]}`,
+        message: response["lineCount"]
+          ? `Checkout submission successful!\n${response["lineCount"]} lines, total quantity: ${response["quantity"]}`
+          : `Checkout submission successful!\nQuantity: ${response["quantity"]}`,
         severity: "success",
         timeout: 5,
       });
+      resetLines();
       await resetStepInPLC();
       fieldRefs.name.current.focus(); // Focus the first field (name)
       setActiveField(fieldRefs.name.current.name);
@@ -285,7 +293,58 @@ function Checkout() {
     hasHandledManualEntry.current = false;
   };
 
+  // #17: multi-line checkout. Lines after the first reuse name/project and are
+  // manual-quantity only; adding the first extra line stops the PLC monitor.
+  const isMultiLine = extraLines.length > 0;
+  const isLineValid = (item, quantity) =>
+    isValidSelection(item, options.items) && !isInvalidQuantity(quantity);
+  const allLinesValid =
+    isLineValid(formData.item, formData.quantity) &&
+    extraLines.every((line) => isLineValid(line.item, line.quantity));
+  const focusLineId = useRef(null);
+
+  const handleAddLine = () => {
+    focusLineId.current = addLine();
+    if (!hasHandledManualEntry.current) {
+      hasHandledManualEntry.current = true;
+      stopAllMonitoring();
+    }
+  };
+
+  const renderAddLine = () => (
+    <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="hidden flex-1 sm:block" />
+      <div className="hidden flex-1 sm:block" />
+      <div className="flex-1">
+        <button
+          type="button"
+          onClick={handleAddLine}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2.5 text-sm font-medium text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+        >
+          <Plus className="h-4 w-4" /> Add line
+        </button>
+      </div>
+      <div className="hidden flex-1 sm:block" />
+    </div>
+  );
+
+  const renderReadOnly = (label, value) => (
+    <div className="flex-1">
+      <span className="mb-1 block text-sm font-medium text-slate-600">
+        {label}
+      </span>
+      <input
+        readOnly
+        tabIndex={-1}
+        value={value ?? ""}
+        aria-label={label}
+        className="block w-full rounded-lg border-0 bg-slate-50 px-3 py-2.5 text-slate-500 ring-1 ring-inset ring-slate-200"
+      />
+    </div>
+  );
+
   const handleManualEntry = async () => {
+    if (isMultiLine && !allLinesValid) return;
     hasHandledManualEntry.current = true;
     try {
       await stopAllMonitoring(); // Stop the monitoring process
@@ -374,12 +433,70 @@ function Checkout() {
               ))}
             </div>
 
-            {shouldShowField("quantity") && formData.quantity && (
+            {!isMultiLine && shouldShowField("quantity") && renderAddLine()}
+
+            {extraLines.map((line, index) => (
+              <div key={line.id} className="space-y-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+                  {renderReadOnly("Name", formData.name)}
+                  {renderReadOnly("Project", formData.project)}
+                  <EntryField
+                    ref={(el) => {
+                      if (el && focusLineId.current === line.id) {
+                        focusLineId.current = null;
+                        el.focus();
+                      }
+                    }}
+                    label="Item"
+                    name={`item-${line.id}`}
+                    placeholder="Type or select item..."
+                    value={line.item}
+                    options={options.items}
+                    optionDetails={itemDetails}
+                    onChange={(e) => updateLine(line.id, "item", e.target.value)}
+                  />
+                  <div className="flex flex-1 items-end gap-1">
+                    <EntryField
+                      label="Quantity"
+                      name={`quantity-${line.id}`}
+                      placeholder="Enter quantity..."
+                      pattern={"^\\d*\\.?\\d*$"}
+                      type="number"
+                      value={line.quantity}
+                      onChange={(e) =>
+                        updateLine(line.id, "quantity", e.target.value)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleManualEntry();
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLine(line.id)}
+                      className="rounded-md p-2.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                      aria-label="Remove line"
+                      title="Remove line"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                {index === extraLines.length - 1 &&
+                  isValidSelection(line.item, options.items) &&
+                  renderAddLine()}
+              </div>
+            ))}
+
+            {shouldShowField("quantity") && (isMultiLine || formData.quantity) && (
               <div className="flex justify-end">
                 <Button
                   type="button"
                   onClick={handleManualEntry}
-                  disabled={isInvalidQuantity(formData.quantity)}
+                  disabled={
+                    isMultiLine
+                      ? !allLinesValid
+                      : isInvalidQuantity(formData.quantity)
+                  }
                 >
                   Manual Entry
                 </Button>

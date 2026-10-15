@@ -7,6 +7,7 @@ import {
   validateInsert,
   validateUpdate,
 } from "../db/tableRegistry.js";
+import { insertCheckoutBatch } from "../db/checkoutBatch.js";
 
 // Method: Get the latest n checkouts
 export const getLatestCheckouts = (req, res) => {
@@ -449,6 +450,23 @@ export const createEntry = (req, res) => {
     res.status(201).json({ id: info.lastInsertRowid, row });
   } catch (error) {
     console.error(`Error creating entry in table ${table}:`, error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+// Create several checkouts at once (multi-line checkout, all-or-nothing).
+// Body: { rows: [{ user_id, project_id, item_id, quantity }, ...] }
+export const createCheckoutBatch = (req, res) => {
+  try {
+    const result = insertCheckoutBatch(getDatabase(), req.body?.rows);
+    if (result.status) {
+      return res
+        .status(result.status)
+        .json({ error: result.message, field: result.field, index: result.index });
+    }
+    res.status(201).json({ rows: result.rows });
+  } catch (error) {
+    console.error("Error creating checkout batch:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
