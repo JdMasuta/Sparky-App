@@ -12,6 +12,8 @@ import {
   buildAck,
   snapshotName,
   controlHostname,
+  promotedMarker,
+  bootsInStandby,
   ipInSubnet,
   pickBindAddress,
 } from "../../deploy/container/handover.mjs";
@@ -155,6 +157,14 @@ test("snapshot names are derived from validated update ids", () => {
 
 test("controlHostname is the control-network alias", () => {
   assert.equal(controlHostname("sparky-app-3.7.0-abc123"), "sparky-app-3.7.0-abc123-control");
+});
+
+test("promoted standby containers boot active", () => {
+  assert.equal(promotedMarker("/data", "sparky-app-3.7.0-abc"), "/data/.sparky/promoted/sparky-app-3.7.0-abc");
+  assert.equal(bootsInStandby(true, false), true, "fresh standby container waits for its handshake");
+  assert.equal(bootsInStandby(true, true), false, "promoted container starts active on every later boot");
+  assert.equal(bootsInStandby(false, false), false);
+  assert.equal(bootsInStandby(undefined, false), false);
 });
 
 test("ipInSubnet", () => {
