@@ -11,6 +11,7 @@ import {
   validateAck,
   buildAck,
   snapshotName,
+  controlHostname,
   ipInSubnet,
   pickBindAddress,
 } from "../../deploy/container/handover.mjs";
@@ -150,6 +151,10 @@ test("validateAck rejects a wrong token, wrong predecessor or unknown protocol",
 
 test("snapshot names are derived from validated update ids", () => {
   assert.equal(snapshotName("u-1"), "pre-u-1.sqlite");
+});
+
+test("controlHostname is the control-network alias", () => {
+  assert.equal(controlHostname("sparky-app-3.7.0-abc123"), "sparky-app-3.7.0-abc123-control");
 });
 
 test("ipInSubnet", () => {
