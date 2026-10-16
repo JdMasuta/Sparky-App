@@ -195,7 +195,10 @@ class Sim {
         this.calls.push(["create", name]);
         return name;
       },
-      networkConnect: async (net, id) => get(id).networks.push(net),
+      networkConnect: async (net, id, { aliases } = {}) => {
+        get(id).networks.push(net);
+        if (aliases) get(id).aliases = { ...get(id).aliases, [net]: aliases };
+      },
       containerStart: async (id) => {
         const c = get(id);
         this.calls.push(["start", id]);
@@ -271,6 +274,7 @@ test("init bootstraps one active app from the initial image", async () => {
   assert.equal(c.running, true);
   assert.equal(c.restart, "unless-stopped");
   assert.deepEqual(c.networks, ["sparky-front", "sparky-control", "sparky-app-egress"]);
+  assert.deepEqual(c.aliases, { "sparky-control": [`${oldName}-control`] }, "handover alias only on the control network");
   assert.equal(c.env.SPARKY_ORCH_TOKEN, tokenFor(orch.state.secret, oldName));
   assert.deepEqual(sim.saved.route, { name: oldName, port: 3000, updatedAt: sim.saved.route.updatedAt });
   assert.equal(sim.saved.status.phase, "idle");
