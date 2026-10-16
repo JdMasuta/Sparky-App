@@ -5,6 +5,7 @@
 // Compatibility rule: the OLD container runs the older code's release logic, so
 // protocol v1 may only gain fields. A container accepts any protocol <= its own.
 import { timingSafeEqual } from "node:crypto";
+import path from "node:path";
 
 export const PROTOCOL = 1;
 
@@ -119,6 +120,18 @@ export function buildAck({ updateId, updateToken, name, version, snapshot, clean
  * alone, so it always resolves to the right address.
  */
 export const controlHostname = (name) => `${name}-control`;
+
+/**
+ * Marker written (in the data volume) when a standby-created container accepts
+ * its predecessor's ack. A container's env never changes, so a promoted
+ * container still says SPARKY_STANDBY=1; on every later boot (Docker restart,
+ * reboot, rollback) the marker makes it start active instead of waiting for a
+ * handshake that will never come.
+ */
+export const promotedMarker = (dataDir, name) => path.join(dataDir, ".sparky", "promoted", name);
+
+/** Standby boot only for a standby-created container that was never promoted. */
+export const bootsInStandby = (standbyEnv, promoted) => !!standbyEnv && !promoted;
 
 /** Snapshot path for an update; updateId is validated, so it is path-safe. */
 export const snapshotName = (updateId) => `pre-${updateId}.sqlite`;
