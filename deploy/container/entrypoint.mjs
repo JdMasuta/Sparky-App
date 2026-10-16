@@ -15,7 +15,7 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { spawn, fork } from "node:child_process";
-import { promises as fs, readFileSync, writeFileSync } from "node:fs";
+import { promises as fs, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as H from "./handover.mjs";
 import { preflight } from "./preflight.mjs";
@@ -48,6 +48,10 @@ const { LATEST_MIGRATION } = await import(
   pathToFileURL(path.join(APP_ROOT, "backend/src/init/migrations.js")).href
 );
 
+// A standby-created container that was already promoted boots active.
+const promoted = cfg.standby && existsSync(H.promotedMarker(cfg.dataDir, cfg.name));
+const standbyBoot = H.bootsInStandby(cfg.standby, promoted);
+
 // Children don't need the per-update handshake secret.
 const childEnv = { ...env };
 delete childEnv.SPARKY_HANDOVER_TOKEN;
@@ -55,7 +59,7 @@ delete childEnv.SPARKY_HANDOVER_TOKEN;
 const log = (msg) => console.log(`[supervisor] ${msg}`);
 
 const state = {
-  phase: H.initialPhase(cfg.standby),
+  phase: H.initialPhase(standbyBoot),
   lastRelease: null,
   drain: { activeMonitors: null, step: null },
   release: null,
@@ -199,8 +203,18 @@ async function runStandby() {
   }, cfg.ackTimeoutMs);
 }
 
+/** Record the promotion before serving, so later boots start active. */
+async function markPromoted() {
+  const marker = H.promotedMarker(cfg.dataDir, cfg.name);
+  await fs.mkdir(path.dirname(marker), { recursive: true });
+  await fs.writeFile(marker, JSON.stringify({ promotedAt: new Date().toISOString(), version }) + "\n");
+}
+
 async function startAfterHandshake() {
   try {
+    // If the marker cannot be written, fail the start (-> rollback) rather
+    // than leave a container that would come back in standby after a reboot.
+    await markPromoted();
     await startServices();
     fire("started");
   } catch (err) {
@@ -418,7 +432,8 @@ process.on("SIGTERM", () => onSignal("SIGTERM"));
 process.on("SIGINT", () => onSignal("SIGINT"));
 
 // ---- boot ---------------------------------------------------------------------
-if (cfg.standby) {
+if (promoted) log("promoted earlier; starting active");
+if (standbyBoot) {
   runStandby().catch((err) => {
     log(`standby failed: ${err.message}`);
     process.exit(1);
