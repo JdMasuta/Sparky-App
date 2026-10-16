@@ -142,8 +142,11 @@ export function createDockerClient({ socketPath = "/var/run/docker.sock", timeou
       return json(await api("POST", `/containers/create?name=${enc(name)}`, { body })).Id;
     },
 
-    async networkConnect(network, container) {
-      await api("POST", `/networks/${enc(network)}/connect`, { body: { Container: container } });
+    /** Attach a container to a network, optionally with network-scoped DNS aliases. */
+    async networkConnect(network, container, { aliases } = {}) {
+      const body = { Container: container };
+      if (aliases?.length) body.EndpointConfig = { Aliases: aliases };
+      await api("POST", `/networks/${enc(network)}/connect`, { body });
     },
 
     async containerStart(id) {
