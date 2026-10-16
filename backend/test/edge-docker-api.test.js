@@ -62,6 +62,18 @@ test("create sends the name and body; start tolerates 304", async () => {
   assert.deepEqual(requests[0].body, { Image: "img" });
 });
 
+test("networkConnect sends network-scoped aliases only when given", async () => {
+  requests.length = 0;
+  routes.set("POST /v1.45/networks/sparky-control/connect", () => [200, ""]);
+  routes.set("POST /v1.45/networks/sparky-app-egress/connect", () => [200, ""]);
+  await docker.networkConnect("sparky-control", "id1", { aliases: ["app-control"] });
+  await docker.networkConnect("sparky-app-egress", "id1");
+  assert.deepEqual(requests.map((r) => r.body), [
+    { Container: "id1", EndpointConfig: { Aliases: ["app-control"] } },
+    { Container: "id1" },
+  ]);
+});
+
 test("pull splits repo and digest and detects errors reported inside the stream", async () => {
   requests.length = 0;
   routes.set("POST /v1.45/images/create", (req) =>
