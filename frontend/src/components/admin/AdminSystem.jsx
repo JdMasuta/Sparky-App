@@ -9,6 +9,7 @@ import ConfirmDialog from "../ui/ConfirmDialog.jsx";
 import useAlerts from "../shared/Alerts/useAlerts.jsx";
 import { api } from "../../lib/api.js";
 import { useCachedGet } from "../../lib/adminCache.js";
+import UpdatePanel from "./UpdatePanel.jsx";
 
 const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
 
@@ -27,6 +28,9 @@ export default function AdminSystem() {
   const status = statusQ.data ?? null;
   const tags = tagsQ.data?.tags ?? [];
   const sysInfo = infoQ.data ?? null;
+  // Container deployment (#25): window-scheduled handover updates. Native
+  // installs keep the legacy on-device updater button.
+  const containerDeployment = sysInfo?.deployment === "container";
 
   const loadDiagnostics = async () => {
     try {
@@ -89,9 +93,11 @@ export default function AdminSystem() {
         <Card
           title="Version & updates"
           actions={
-            <Button variant="secondary" size="sm" onClick={() => setConfirmUpdate(true)}>
-              <DownloadCloud className="h-4 w-4" /> Check &amp; apply update
-            </Button>
+            sysInfo && !containerDeployment ? (
+              <Button variant="secondary" size="sm" onClick={() => setConfirmUpdate(true)}>
+                <DownloadCloud className="h-4 w-4" /> Check &amp; apply update
+              </Button>
+            ) : null
           }
         >
           <p className="text-2xl font-semibold text-slate-800">
@@ -102,6 +108,11 @@ export default function AdminSystem() {
               ? `Frontend ${version} · Backend ${sysInfo.version} · Node ${sysInfo.node} · ${sysInfo.environment} · PLC ${sysInfo.plcMode}`
               : "Remote updates are delivered as versioned releases and applied on-device."}
           </p>
+          {containerDeployment && (
+            <div className="mt-4">
+              <UpdatePanel productVersion={sysInfo.productVersion} />
+            </div>
+          )}
         </Card>
 
         <Card
