@@ -440,6 +440,22 @@ export function createOrchestrator({
       return finish(u, "failed", `New version failed preflight: ${pre?.reason ?? "timed out"}`);
     }
 
+    // The running version must be serving before it can drain; it may still be
+    // booting (e.g. restarted by reconcile right after a reboot).
+    const oldReady = await waitFor(
+      async () => ((await getAppState(old.name))?.phase === "active" ? true : null),
+      config.preflightTimeoutMs,
+    );
+    if (!oldReady) {
+      return abortBeforeCommit(u, old, {
+        standby,
+        resumeOld: false,
+        phase: "postponed",
+        reason: "The running version was not ready to hand over; postponed",
+        notBefore: retryAt(),
+      });
+    }
+
     // Gate 2, then release: the old container drains.
     if (!(await gate(u, old, standby, false))) return;
     try {
@@ -472,13 +488,16 @@ export function createOrchestrator({
       if (st?.phase === "drained") break;
       if (st?.phase === "active") {
         const timedOut = st.lastRelease?.result === "drain-timeout";
-        const minutes = Math.round(config.drainTimeoutMs / 60_000);
+        const waited =
+          config.drainTimeoutMs >= 60_000
+            ? `${Math.round(config.drainTimeoutMs / 60_000)} min`
+            : `${Math.round(config.drainTimeoutMs / 1000)} s`;
         return abortBeforeCommit(u, old, {
           standby,
           resumeOld: false,
           phase: "postponed",
           reason: timedOut
-            ? `${st.activeMonitors ?? "Some"} checkout(s) still in progress after ${minutes} min; postponed`
+            ? `${st.activeMonitors ?? "Some"} checkout(s) still in progress after ${waited}; postponed`
             : `The running version resumed service (${st.lastRelease?.result ?? "unknown"}); postponed`,
           notBefore: retryAt(),
         });
