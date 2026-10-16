@@ -173,7 +173,9 @@ export function createOrchestrator({
       dataVolume: config.dataVolume,
     });
     const id = await docker.containerCreate(name, spec.create);
-    for (const network of spec.extraNetworks) await docker.networkConnect(network, id);
+    for (const network of spec.extraNetworks) {
+      await docker.networkConnect(network.name, id, { aliases: network.aliases });
+    }
     await docker.containerStart(id);
     return name;
   }
