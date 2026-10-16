@@ -3,6 +3,7 @@
 // settings (no docker.sock, non-root, read-only rootfs, no capabilities,
 // state only via the data volume, secrets only from /data env files) cannot
 // drift between bootstrap and updates. See SECURITY.md.
+import { controlHostname } from "../container/handover.mjs";
 
 export const DEFAULT_NETWORKS = Object.freeze({
   front: "sparky-front", // internal: proxy <-> apps
@@ -35,9 +36,9 @@ export function appContainerName(version, suffix) {
  * @param {{predecessor: string, handoverToken: string} | null} [o.standby]
  * @param {typeof DEFAULT_NETWORKS} [o.networks]
  * @param {string} [o.dataVolume]
- * @returns {{ create: object, extraNetworks: string[] }}
+ * @returns {{ create: object, extraNetworks: {name: string, aliases?: string[]}[] }}
  *   `create` is the Engine API body for POST /containers/create; connect
- *   `extraNetworks` before starting the container.
+ *   `extraNetworks` (with their aliases) before starting the container.
  */
 export function buildAppContainerSpec({
   image,
@@ -108,7 +109,10 @@ export function buildAppContainerSpec({
       },
       NetworkingConfig: { EndpointsConfig: { [networks.front]: {} } },
     },
-    extraNetworks: [networks.control, networks.egress],
+    extraNetworks: [
+      { name: networks.control, aliases: [controlHostname(name)] },
+      { name: networks.egress },
+    ],
   };
 }
 
