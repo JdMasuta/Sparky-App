@@ -38,7 +38,10 @@ test("app containers are locked down", () => {
   assert.equal(hc.Binds, undefined);
   assert.equal(hc.PortBindings, undefined, "apps never publish ports");
   assert.equal(hc.NetworkMode, DEFAULT_NETWORKS.front);
-  assert.deepEqual(extraNetworks, [DEFAULT_NETWORKS.control, DEFAULT_NETWORKS.egress]);
+  assert.deepEqual(extraNetworks, [
+    { name: DEFAULT_NETWORKS.control, aliases: [`${base.name}-control`] },
+    { name: DEFAULT_NETWORKS.egress },
+  ]);
   assert.equal(hc.RestartPolicy.Name, "unless-stopped");
 });
 
