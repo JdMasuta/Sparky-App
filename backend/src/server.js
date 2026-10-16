@@ -29,6 +29,7 @@ import plcRoutes from "./services/routes/plcRoutes.js";
 import systemRoutes from "./services/routes/systemRoutes.js";
 import adminRoutes from "./services/routes/adminRoutes.js";
 import { expireInactiveProjects } from "./services/db/projectExpiry.js";
+import { runDailyBackup } from "./services/db/backup.js";
 import { createShutdown } from "./init/lifecycle.js";
 import { createDrainController } from "./services/lifecycle/drain.js";
 import { activeMonitorCount } from "./services/controllers/pullController.js";
@@ -228,6 +229,20 @@ cronTasks.push(cron.schedule("0 2 * * *", () => {
     console.log(`Project expiry job: ${expired} project(s) set INACTIVE.`);
   } catch (error) {
     console.error("Project expiry job failed:", error);
+  }
+}));
+
+// Daily at 4:45 PM — copy the DB to SPARKY_BACKUP_DIR (host-visible in the
+// container deployment), so a fresh backup exists before each update window
+// opens at 5 PM. No-op when SPARKY_BACKUP_DIR is unset.
+cronTasks.push(cron.schedule("45 16 * * *", async () => {
+  try {
+    const result = await runDailyBackup({ db: getDatabase(), dir: process.env.SPARKY_BACKUP_DIR });
+    if (result) {
+      console.log(`Daily DB backup written to ${result.file} (${result.pruned.length} old copy/copies pruned).`);
+    }
+  } catch (error) {
+    console.error("Daily DB backup failed:", error);
   }
 }));
 
