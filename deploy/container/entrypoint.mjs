@@ -257,7 +257,7 @@ async function takeSnapshot(updateId) {
 async function sendAck(successor, ack) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`http://${successor}:${cfg.handoverPort}/handover/ack`, {
+      const res = await fetch(`http://${H.controlHostname(successor)}:${cfg.handoverPort}/handover/ack`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ack),
