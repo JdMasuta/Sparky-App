@@ -73,19 +73,25 @@ class Sim {
     c.running = true;
     c.lastRelease = null;
     const p = this.profiles[c.image] || {};
-    if (c.env.SPARKY_STANDBY === "1" && !c.booted) {
+    // Like the real supervisor: a standby-created container boots in standby
+    // until it has been promoted (marker written when it accepts the ack).
+    if (c.env.SPARKY_STANDBY === "1" && !c.promoted) {
       if (p.preflight === "exit") {
         c.running = false;
         c.exitCode = 1;
       } else c.phase = p.preflight === "fail" ? "preflight-failed" : "standby-ready";
     } else {
       c.phase = "active";
+      c.booting = p.bootPolls ?? 0; // supervisor still starting services
     }
-    c.booted = true;
   }
 
   #state(c) {
     const p = this.profiles[c.image] || {};
+    if (c.booting > 0) {
+      c.booting--;
+      return { protocol: 1, phase: "starting", lastRelease: null, activeMonitors: 0 };
+    }
     if (c.phase === "draining") {
       if (c.drainPolls-- <= 0) {
         if (p.drain === "timeout") {
@@ -118,6 +124,7 @@ class Sim {
       c.phase = "released";
       c.lastRelease = { result: "handed-over" };
       n.phase = "starting";
+      n.promoted = true;
       n.startPolls = np.startPolls ?? 0;
     } else {
       c.phase = "active";
@@ -142,7 +149,7 @@ class Sim {
     if (auth !== `Bearer ${tokenFor(this.secret(), c.name)}`) return json(401, { error: "Unauthorized" });
     this.calls.push(["POST", c.name, u.pathname]);
     if (u.pathname === "/handover/release") {
-      if (c.phase !== "active") return json(409, {});
+      if (c.phase !== "active" || c.booting > 0) return json(409, {});
       c.release = JSON.parse(opts.body);
       c.phase = "draining";
       c.drainPolls = p.drainPolls ?? 1;
@@ -220,8 +227,6 @@ class Sim {
       containerRestart: async (id) => {
         const c = get(id);
         this.calls.push(["restart", id]);
-        c.booted = true; // a restarted container boots as configured, never re-preflights
-        c.env = { ...c.env, SPARKY_STANDBY: c.env.SPARKY_STANDBY };
         this.#boot(c);
       },
       containerUpdate: async (id, update) => {
@@ -417,6 +422,28 @@ test("drain timeout: postpone 15 min, old version keeps serving", async () => {
   assert.equal(orch.state.update.attempts, 2);
 });
 
+test("old version still booting: wait until it serves, then hand over", async () => {
+  const { orch } = await setup({ profiles: { [OLD_IMG]: { bootPolls: 5 } } });
+  await runQueued(orch);
+  assert.equal(orch.state.update.phase, "done", orch.state.update.lastReason);
+});
+
+test("old version never becomes ready: postpone without releasing", async () => {
+  const { sim, orch, oldName } = await setup({ profiles: { [OLD_IMG]: { bootPolls: 1_000_000 } } });
+  await runQueued(orch);
+  assert.equal(orch.state.update.phase, "postponed");
+  assert.match(orch.state.update.lastReason, /not ready to hand over/);
+  assert.ok(!sim.calls.some((c) => c[2] === "/handover/release"));
+  assert.equal(sim.apps().length, 1);
+  assert.equal(sim.app(oldName).restart, "unless-stopped");
+});
+
+test("short drain timeouts are reported in seconds", async () => {
+  const { orch } = await setup({ profiles: { [OLD_IMG]: { drain: "timeout", drainPolls: 1 } } }, { drainTimeoutMs: 5000 });
+  await runQueued(orch);
+  assert.match(orch.state.update.lastReason, /still in progress after 5 s; postponed/);
+});
+
 // ---- failures before commit ---------------------------------------------------
 
 test("preflight failure: new container removed, old one never touched", async () => {
@@ -506,6 +533,32 @@ for (const [label, profile, reason] of [
     assert.equal(u.logs, "simulated log line");
   });
 }
+
+test("rollback to a version that was itself promoted from standby brings it back active", async () => {
+  // 3.6.0 -> 3.7.0 succeeds (3.7.0 was created as a standby container), then a
+  // broken 3.8.0 rolls back: the restarted 3.7.0 must serve, not wait in standby.
+  const BAD_IMG = `${REPO}@${digest("3")}`;
+  const { sim, orch } = await setup({
+    profiles: { [BAD_IMG]: { healthy: false } },
+    registry: { [BAD_IMG]: imageInfo(BAD_IMG, "3.8.0") },
+  });
+  await runQueued(orch);
+  const promotedName = orch.state.active.name;
+  assert.equal(sim.app(promotedName).env.SPARKY_STANDBY, "1");
+  sim.latest = { version: "3.8.0", image: BAD_IMG, repo: REPO, digest: digest("3") };
+  await runQueued(orch);
+  assert.equal(orch.state.update.phase, "rolled-back");
+  assert.equal(orch.state.active.name, promotedName);
+  assert.equal(sim.app(promotedName).phase, "active", "restarted promoted container must serve");
+});
+
+test("a promoted container comes back active after a Docker restart", async () => {
+  const { sim, orch } = await setup();
+  await runQueued(orch);
+  const name = orch.state.active.name;
+  await sim.docker.containerRestart(name);
+  assert.equal(sim.app(name).phase, "active");
+});
 
 test("failed snapshot restore is reported in the rollback reason", async () => {
   const { sim, orch } = await setup({ profiles: { [NEW_IMG]: { healthy: false } } });
@@ -604,8 +657,8 @@ test("reboot during verifying: new container dropped, DB restored, old version r
   const newName = persisted.update.standbyName;
   sim.saved.state = persisted;
   sim.containers.clear();
-  sim.containers.set(oldName, { name: oldName, image: OLD_IMG, env: {}, running: false, phase: "stopped", restart: "no", networks: [], created: 1, booted: true });
-  sim.containers.set(newName, { name: newName, image: NEW_IMG, env: {}, running: false, phase: "stopped", restart: "no", networks: [], created: 2, booted: true });
+  sim.containers.set(oldName, { name: oldName, image: OLD_IMG, env: {}, running: false, phase: "stopped", restart: "no", networks: [], created: 1 });
+  sim.containers.set(newName, { name: newName, image: NEW_IMG, env: {}, running: false, phase: "stopped", restart: "no", networks: [], created: 2 });
   sim.restores = [];
   sim.calls = [];
 
