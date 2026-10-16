@@ -111,6 +111,15 @@ export function buildAck({ updateId, updateToken, name, version, snapshot, clean
   };
 }
 
+/**
+ * Hostname of an app container on the control network. App containers sit on
+ * several networks and Docker's DNS may answer a bare container name with an
+ * address on any of them, but the handover listener binds to the control
+ * address only. The orchestrator registers this alias on the control network
+ * alone, so it always resolves to the right address.
+ */
+export const controlHostname = (name) => `${name}-control`;
+
 /** Snapshot path for an update; updateId is validated, so it is path-safe. */
 export const snapshotName = (updateId) => `pre-${updateId}.sqlite`;
 
