@@ -12,6 +12,7 @@ import {
   getAllData,
   getById,
   createEntry,
+  createCheckoutBatch,
   updateEntry,
   deleteEntry,
 } from "../controllers/databaseController.js";
@@ -59,6 +60,9 @@ router.post(
   },
   createEntry
 );
+
+// Operator: submit a multi-line checkout in one transaction (same validation).
+router.post("/checkouts/batch", createCheckoutBatch);
 
 // Admin-only writes.
 router.post("/:table", requireAdmin, createEntry);

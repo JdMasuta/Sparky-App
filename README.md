@@ -154,6 +154,33 @@ sparky register             :: (once, elevated) run "sparky start --prod" at boo
 - Data (SQLite DB, `backend.env`/`microservice.env`, logs) lives in `SPARKY_DATA_DIR`
   (default `.\data`), outside the code/release tree, so updates never clobber it.
 
+### Versioning & releases
+
+Four versions are tracked:
+
+| Version | File | Notes |
+| --- | --- | --- |
+| Product | `package.json` (repo root) | The "Sparky Cart" version. Release tags `vX.Y.Z` track this. |
+| Frontend | `frontend/package.json` | Shown in the UI via `__APP_VERSION__`. |
+| Backend | `backend/package.json` | Reported by `GET /api/system/info`. |
+| Microservice | `microservice/package.json` | Reported by the PLC bridge's `/status`. |
+
+Cut a release from a clean checkout with `npm run release` (or `./release.sh`). It asks
+which components to bump (or take flags), bumps them individually, bumps the product
+version, builds the frontend as a check, commits only the version files, creates the
+annotated tag and prints the one push command — it never pushes:
+
+```sh
+npm run release -- --product minor --frontend minor --backend patch --microservice none
+# ...
+# To publish, run:
+#   git push origin main --follow-tags
+```
+
+`--dry-run` shows the plan without changing anything; `--no-tag` commits a bump without
+tagging (e.g. the per-branch bump before merging). The built UI (`backend/src/public`) is
+not committed — `release.yml` and `sparky build` produce it.
+
 ### Remote updates
 
 CI/CD lives in `.github/workflows`:
@@ -161,15 +188,18 @@ CI/CD lives in `.github/workflows`:
 - **ci.yml** — on every push/PR: backend + microservice `node --test` (PLC bridge tested
   with `PLC_MODE=sim`) and the frontend lint + build. Node is pinned to 23.6.0 to match the
   portable runtime.
-- **release.yml** — on a `v*` tag: runs the tests, builds the frontend, installs win‑x64
-  production deps (bundling the `better-sqlite3` prebuild), zips a bundle with a SHA‑256
-  `manifest.json`, and publishes a GitHub Release.
+- **release.yml** — on a `v*` tag (or manually via *Run workflow* with an existing tag):
+  checks that the tag matches the product version in the root `package.json`, runs the
+  tests, builds the frontend, installs win‑x64 production deps (bundling the
+  `better-sqlite3` prebuild), zips a bundle with a SHA‑256 `manifest.json` (including the
+  component versions), and publishes a GitHub Release.
 
 On the device, `sparky update` (or the Admin Dashboard → System → *Check & apply
 update*) runs the Node updater (`deploy/updater.mjs`) from `%TEMP%` so nothing executes
-from inside the tree being replaced: it compares the installed version to the latest
-release, downloads and **verifies the SHA‑256**, backs up the current install (dirs +
-`sparky.bat`), swaps in the new code, restarts via `sparky start --prod`, health‑checks
+from inside the tree being replaced: it compares the installed product version (root
+`package.json`; installs predating it fall back to `backend/package.json`) to the latest
+release tag, downloads and **verifies the SHA‑256**, backs up the current install (dirs +
+`sparky.bat` and root `package.json`), swaps in the new code, restarts via `sparky start --prod`, health‑checks
 `/health`, and **rolls back automatically** on failure. It uses only the portable
 `node.exe` and Windows‑built‑in `tar` — no PowerShell. Use `sparky update --check` to
 report an available update without applying it.

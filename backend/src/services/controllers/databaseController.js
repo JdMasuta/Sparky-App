@@ -7,6 +7,7 @@ import {
   validateInsert,
   validateUpdate,
 } from "../db/tableRegistry.js";
+import { insertCheckoutBatch } from "../db/checkoutBatch.js";
 
 // Method: Get the latest n checkouts
 export const getLatestCheckouts = (req, res) => {
@@ -131,10 +132,10 @@ export const getActiveTableData = (req, res) => {
       .all();
     const projects = db
       .prepare(
-        "SELECT project_id, project_number FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' ORDER BY project_number"
+        "SELECT project_id, project_number, a_number, name FROM projects WHERE COALESCE(status, 'ACTIVE') = 'ACTIVE' ORDER BY project_number"
       )
       .all();
-    const items = db.prepare("SELECT item_id, sku FROM items ORDER BY sku").all();
+    const items = db.prepare("SELECT item_id, sku, name FROM items ORDER BY sku").all();
 
     res.status(200).json({
       users,
@@ -449,6 +450,23 @@ export const createEntry = (req, res) => {
     res.status(201).json({ id: info.lastInsertRowid, row });
   } catch (error) {
     console.error(`Error creating entry in table ${table}:`, error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+// Create several checkouts at once (multi-line checkout, all-or-nothing).
+// Body: { rows: [{ user_id, project_id, item_id, quantity }, ...] }
+export const createCheckoutBatch = (req, res) => {
+  try {
+    const result = insertCheckoutBatch(getDatabase(), req.body?.rows);
+    if (result.status) {
+      return res
+        .status(result.status)
+        .json({ error: result.message, field: result.field, index: result.index });
+    }
+    res.status(201).json({ rows: result.rows });
+  } catch (error) {
+    console.error("Error creating checkout batch:", error);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

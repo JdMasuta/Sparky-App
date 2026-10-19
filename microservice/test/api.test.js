@@ -1,6 +1,7 @@
 import "./setup-env.js"; // must precede server.js — pins env before dotenv runs
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createApp } from "../src/server.js";
 import { SimDriver } from "../src/driver/simDriver.js";
 
@@ -38,6 +39,16 @@ test("GET /status reports connected", async () => {
   const json = await (await fetch(base + "/status")).json();
   assert.equal(json.connected, true);
   assert.equal(json.mode, "sim");
+});
+
+test("GET /status and /version report the package version", async () => {
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8")
+  );
+  const status = await (await fetch(base + "/status")).json();
+  assert.equal(status.version, pkg.version);
+  const v = await (await fetch(base + "/version")).json();
+  assert.equal(v.version, pkg.version);
 });
 
 test("batch write then read round-trips handshake tags", async () => {
