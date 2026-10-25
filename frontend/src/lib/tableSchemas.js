@@ -3,6 +3,8 @@
 // old free-text "Add Entry" modal is replaced by proper inputs). Foreign-key
 // fields become dropdowns populated from other tables at render time.
 
+import { A_NUMBER_RE } from "../components/entry/projectNumbers.js";
+
 export const TABLES = ["users", "projects", "items", "checkouts"];
 
 // Fixed user roles (mirrors backend tableRegistry USER_TYPES).
@@ -24,9 +26,9 @@ export const schemas = {
     pk: "project_id",
     columns: ["project_id", "project_number", "name", "a_number", "status", "created_at"],
     fields: [
-      { name: "project_number", label: "Project number", type: "text", required: true, maxLength: 50, hint: "Must be unique" },
+      { name: "project_number", label: "Project number", type: "text", required: true, maxLength: 50, hint: "Must be unique", uppercase: true, pattern: /^M\d{6}$/, patternMessage: "Must be M followed by 6 digits (e.g. M123456)" },
       { name: "name", label: "Name", type: "text", required: true, maxLength: 100 },
-      { name: "a_number", label: "A-number", type: "text", maxLength: 50 },
+      { name: "a_number", label: "A-number", type: "text", maxLength: 50, uppercase: true, pattern: A_NUMBER_RE, patternMessage: "Must start with a letter, 2-9 letters/digits total (e.g. A12345)" },
       { name: "description", label: "Description", type: "textarea" },
       { name: "status", label: "Status", type: "select", options: ["ACTIVE", "INACTIVE"], default: "ACTIVE" },
     ],
