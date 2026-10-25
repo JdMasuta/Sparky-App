@@ -31,6 +31,9 @@ export default function EntryFormModal({ isOpen, table, mode, initial, refData, 
       const val = values[f.name];
       if (f.required && (val === "" || val === undefined || val === null)) {
         errs[f.name] = `${f.label} is required`;
+      } else if (typeof val === "string" && val !== "") {
+        if (f.uppercase && val !== val.toUpperCase()) errs[f.name] = `${f.label} must be uppercase`;
+        else if (f.pattern && !f.pattern.test(val)) errs[f.name] = f.patternMessage || `${f.label} is invalid`;
       }
     }
     setFieldErrors(errs);
@@ -91,7 +94,7 @@ export default function EntryFormModal({ isOpen, table, mode, initial, refData, 
             hint: f.hint,
             error: fieldErrors[f.name],
             value: values[f.name] ?? "",
-            onChange: (e) => set(f.name, e.target.value),
+            onChange: (e) => set(f.name, f.uppercase ? e.target.value.toUpperCase() : e.target.value),
           };
           if (f.type === "textarea") return <TextArea key={f.name} {...common} />;
           if (f.type === "select") {
